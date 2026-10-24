@@ -30,4 +30,5 @@ in {
   engram = pins.package "engram" ./pkgs/engram {};
   kasetto = pins.package "kasetto" ./pkgs/kasetto {};
   phrog = pins.package "phrog" ./pkgs/phrog {};
+  neocursor = pins.package "neocursor" ./pkgs/neocursor {};
 }
