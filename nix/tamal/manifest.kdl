@@ -1,0 +1,24 @@
+// ┏┓╻+╻ ╱┏┳┓┏┓┏┳┓┏┓╻
+// ┃┃┃┃┗━┓╹┃╹┣┫┃┃┃┣┫┃   Read the manpage:
+// ╹┗┛╹╱ ╹ ╹ ╹╹╹ ╹╹╹┗┛  $ man nixtamal-manifest
+version "1.5.0"
+inputs {
+	nixpkgs {
+		archive fetch-time=eval {
+			url "{{fresh_value}}/nixexprs.tar.zst"
+			extension tar.zst
+		}
+		hash algorithm=SHA-256
+		fresh-cmd {
+			$ curl -Ls --http2 --compressed -o "/dev/null" -w "%{url_effective}" "https://channels.nixos.org/nixpkgs-unstable"
+		}
+	}
+	nixtamal {
+		darcs {
+			repository "https://darcs.toastal.in.th/nixtamal/next/"
+		}
+		fresh-cmd {
+			$ curl -Ls "https://darcs.toastal.in.th/nixtamal/next/_darcs/weak_hash"
+		}
+	}
+}

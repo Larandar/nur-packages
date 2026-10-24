@@ -1,0 +1,418 @@
+diff -ruN a/doc/manifest.rst b/doc/manifest.rst
+--- a/doc/manifest.rst
++++ b/doc/manifest.rst
+@@ -191,6 +191,37 @@
+ 	List of patch names (as arguments) to apply to this input. Patches are
+ 	defined at the top-level in the `Patches`_ section.
+ 
++Freshness shell
++--------------------------------------------------------------------------------
++
++Input ``fresh-cmd`` optionally accepts ``shell="nu"``.
++Without it, commands run directly as argument vectors, as before. With it,
++Nixtamal renders the ``$`` command and subsequent ``|`` stages as a pipeline
++and invokes the named executable with ``-c`` and that script. ``shell`` is a
++single executable name or path, not an executable plus command-line options.
++Nushell is invoked with ``--no-config-file``; other shells use POSIX argument
++quoting and must accept ``-c``.
++
++.. code-block:: text
++
++	fresh-cmd shell="nu" {
++		$ http get "https://api.github.com/repos/OWNER/REPO/releases/latest"
++		| get tag_name
++	}
++
++Arguments, including template substitutions, remain literal data. This is not
++a raw script-fragment interface: shell operators, variable expansion and
++redirections inside an argument are quoted, not evaluated. Nu command words,
++subcommands and flags remain recognizable; strings requiring quoting are
++escaped for Nu rather than POSIX shell syntax. Integer and decimal tokens with
++a duration or filesize unit (``30sec``, ``1.5min``, ``512mib``) remain bare so
++Nushell parses them as measures, not strings. Use separate flag and value
++arguments for Nu builtins. Pipeline exit behavior is the selected shell's;
++Nixtamal still rejects a nonzero shell exit or an empty freshness result.
++The shared codec also preserves this attribute on remote patch definitions,
++but the pinned upstream does not execute their freshness commands; this patch
++does not add that separate refresh behaviour.
++
+ File
+ --------------------------------------------------------------------------------
+ 
+diff -ruN a/lib/foreman.ml b/lib/foreman.ml
+--- a/lib/foreman.ml
++++ b/lib/foreman.ml
+@@ -143,7 +143,7 @@
+ 				(
+ 					match input.fresh.cmd with
+ 					| None -> []
+-					| Some (cmd, cmds) ->
++					| Some {pipeline = (cmd, cmds); shell} ->
+ 						let cmd_str_filled ({prog; args}: Input.Fresh.Cmd.cmd) =
+ 							List.map fill (prog :: args)
+ 						in
+@@ -153,6 +153,7 @@
+ 							Fmt.list ~sep: (Fmt.any " | ") (Fmt.list ~sep: (Fmt.any " ") Fmt.string)
+ 						in
+ 							[("fresh-cmd", Fmt.str "$ %a" formatter cmds')]
++							@ Option.fold ~none: [] ~some: (fun sh -> ["shell", sh]) shell
+ 				);
+ 				Option.fold ~none: [] ~some: (fun v -> ["fresh-value", v]) input.fresh.value;
+ 				["hash-algorithm", Input.Hash.algorithm_to_string input.hash.algorithm];
+@@ -895,7 +896,18 @@
+ 					| exn -> Error (exn, stderr_buf)
+ 			end
+ 	in
+-	build_pipeline cmds
++	match cmds.shell with
++	| None -> build_pipeline cmds.pipeline
++	| Some shell ->
++		let stdout_buf = Buffer.create 1024
++		and stderr_buf = Buffer.create 1024 in
++		try
++			Eio.Process.run proc_mgr
++				~stdout: (Eio.Flow.buffer_sink stdout_buf)
++				~stderr: (Eio.Flow.buffer_sink stderr_buf)
++				(Fresh_shell.argv ~models ~shell cmds.pipeline);
++			Ok stdout_buf
++		with exn -> Error (exn, stderr_buf)
+ 
+ let get_fresh ~sw ~proc_mgr input : (string option, error) result =
+ 	match Input.fresh_cmd input with
+diff -ruN a/lib/fresh_shell.ml b/lib/fresh_shell.ml
+--- a/lib/fresh_shell.ml
++++ b/lib/fresh_shell.ml
+@@ -0,0 +1,79 @@
++(* SPDX-License-Identifier: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception *)
++(* Shell rendering is opt-in; shell metacharacters in arguments are quoted. *)
++let is_nu shell =
++	match Filename.basename shell with "nu" | "nu.exe" -> true | _ -> false
++
++let nu_word s =
++	s <> "" && not (List.mem s ["true"; "false"; "null"; "inf"; "-inf"; "NaN"])
++	&& (match s.[0] with
++		| 'a'..'z' | 'A'..'Z' | '_' -> true
++		| '-' when String.length s > 1 ->
++			(match s.[1] with 'a'..'z' | 'A'..'Z' | '_' | '-' -> true | _ -> false)
++		| _ -> false)
++	&& String.for_all (function
++		| 'a'..'z' | 'A'..'Z' | '0'..'9' | '_' | '-' | '/' | '.' | ':' | '@' | '%' | '+' | '=' | ',' -> true
++		| _ -> false) s
++
++let nu_quote s =
++	let b = Buffer.create (String.length s + 2) in
++	Buffer.add_char b '"';
++	String.iter (function
++		| '"' -> Buffer.add_string b "\\\""
++		| '\\' -> Buffer.add_string b "\\\\"
++		| '\n' -> Buffer.add_string b "\\n"
++		| '\r' -> Buffer.add_string b "\\r"
++		| '\t' -> Buffer.add_string b "\\t"
++		| c when Char.code c < 32 || Char.code c = 127 ->
++			Buffer.add_string b (Printf.sprintf "\\u{%x}" (Char.code c))
++		| c -> Buffer.add_char b c
++	) s;
++	Buffer.add_char b '"';
++	Buffer.contents b
++
++(* Duration & filesize literals like “30sec” stay bare so Nu parses them
++   as measures, not strings; anything else digit-leading is still quoted. *)
++let nu_measure s =
++	let len = String.length s in
++	let is_digit c = c >= '0' && c <= '9' in
++	let rec scan i = if i < len && is_digit s.[i] then scan (i + 1) else i in
++	let units = [
++		"ns"; "us"; "ms"; "sec"; "min"; "hr"; "day"; "wk";
++		"b"; "kb"; "mb"; "gb"; "tb"; "pb";
++		"kib"; "mib"; "gib"; "tib"; "pib";
++	] in
++	if len < 2 then false
++	else
++		let int_end = scan 0 in
++		int_end > 0
++		&& (let unit_start =
++			if int_end < len && s.[int_end] = '.' then
++				let frac_end = scan (int_end + 1) in
++				if frac_end > int_end + 1 then frac_end else -1
++			else int_end
++		in
++		unit_start >= 0 && List.mem (String.sub s unit_start (len - unit_start)) units)
++
++let script ~models ~shell ((first, rest) : Input.Fresh.Cmd.cmd Util.Non_empty_list.t) =
++	let nu = is_nu shell in
++	let fill = Input.Template.fill ~models in
++	let argument value =
++		if nu then (if nu_word value || nu_measure value then value else nu_quote value)
++		else Filename.quote value
++	in
++	let command ({prog; args} : Input.Fresh.Cmd.cmd) =
++		let prog = fill prog in
++		let prog =
++			if not nu then Filename.quote prog
++			else if nu_word prog then prog
++			else if String.starts_with ~prefix: "^" prog then
++				"^" ^ nu_quote (String.sub prog 1 (String.length prog - 1))
++			else "^" ^ nu_quote prog
++		in
++		String.concat " " (prog :: List.map (fun arg -> argument (fill arg)) args)
++	in
++	String.concat " | " (List.map command (first :: rest))
++
++let argv ~models ~shell pipeline =
++	let text = script ~models ~shell pipeline in
++	if is_nu shell then [shell; "--no-config-file"; "-c"; text]
++	else [shell; "-c"; text]
+diff -ruN a/lib/input.ml b/lib/input.ml
+--- a/lib/input.ml
++++ b/lib/input.ml
+@@ -24,12 +24,24 @@
+ 		}
+ 		[@@deriving show, eq, make, qcheck]
+ 
+-		type t = cmd Util.Non_empty_list.t
++		type t = {
++			pipeline: cmd Util.Non_empty_list.t;
++			shell: string option;
++		}
+ 		[@@deriving show, eq, qcheck]
+ 
+-		let (~$) x = (x, [])
+-		let (|:) (x, xs) x' = (x, x' :: xs)
+-		let (@) (x, xs) (y, ys) = (x, xs @ y :: ys)
++		(* Keep generated manifest roundtrips inside the nonempty shell contract. *)
++		let gen = QCheck.Gen.map (fun t ->
++			{t with shell = Option.map (fun s -> if s = "" then "nu" else s) t.shell}
++		) gen
++
++		let (~$) x = {pipeline = (x, []); shell = None}
++		let (|:) t x' =
++			let x, xs = t.pipeline in
++			{t with pipeline = (x, x' :: xs)}
++		let (@) t u =
++			let x, xs = t.pipeline and y, ys = u.pipeline in
++			{t with pipeline = (x, xs @ y :: ys)}
+ 	end
+ 
+ 	type t = {
+diff -ruN a/lib/manifest.ml b/lib/manifest.ml
+--- a/lib/manifest.ml
++++ b/lib/manifest.ml
+@@ -686,7 +686,7 @@
+ 	let codec : t KDL.codec = {
+ 		to_kdl = (function
+ 			| None -> []
+-			| Some (exec, pipes) ->
++			| Some {pipeline = (exec, pipes); shell} ->
+ 				let open KDL in
+ 				let cmd_args ({prog; args}: Input.Fresh.Cmd.cmd) =
+ 					List.map (Template.to_arg) (prog :: args)
+@@ -697,7 +697,9 @@
+ 				let nodes =
+ 					node "$" ~args: (cmd_args exec) [] :: nodes
+ 				in
+-					[node "fresh-cmd" nodes]
++				let props = Option.fold ~none: []
++					~some: (fun sh -> ["shell", (None, `String sh)]) shell in
++				[node "fresh-cmd" ~props nodes]
+ 		);
+ 		of_kdl = (fun kdl ->
+ 			let open KDL.L in
+@@ -723,6 +725,13 @@
+ 			match kdl.@(node "fresh-cmd") |> ll |> find with
+ 			| Ok None -> Ok None
+ 			| Ok (Some fresh_cmd) ->
++				let* shell =
++					match ll @@ fresh_cmd.@(prop "shell" // string_value) with
++					| Ok "" -> Error [`Invalid_fresh_cmd "shell must name a nonempty executable"]
++					| Ok sh -> Ok (Some sh)
++					| Error [`Missing_prop "shell"] -> Ok None
++					| Error errs -> Error errs
++				in
+ 				let+ exec : Input.Fresh.Cmd.cmd =
+ 					let* exec' = ll @@ fresh_cmd.@(child ~nth: 0 "$") in
+ 					extract_cmd exec'
+@@ -730,7 +739,7 @@
+ 					let* ps = fresh_cmd.@(child_many "|") |> ll |> optional ~default: [] in
+ 					all (List.map extract_cmd ps)
+ 				in
+-				let cmd : Input.Fresh.Cmd.t = (exec, pipes) in
++				let cmd : Input.Fresh.Cmd.t = {pipeline = (exec, pipes); shell} in
+ 				Some cmd
+ 			| Error errs -> Error errs
+ 		);
+diff -ruN a/lib/nixtamal.ml b/lib/nixtamal.ml
+--- a/lib/nixtamal.ml
++++ b/lib/nixtamal.ml
+@@ -14,6 +14,7 @@
+ module Input = Input
+ module Patch_check = Patch_check
+ module Foreman = Foreman
++module Fresh_shell = Fresh_shell
+ module Phase = Phase
+ module Silo = Silo
+ module Working_directory = Working_directory
+diff -ruN a/schema/manifest.kdl b/schema/manifest.kdl
+--- a/schema/manifest.kdl
++++ b/schema/manifest.kdl
+@@ -95,6 +95,10 @@
+ 					}
+ 				}
+ 				node fresh-cmd {
++					prop shell {
++						type string
++						required #false
++					}
+ 					children {
+ 						node $ {
+ 							value {
+@@ -332,6 +336,10 @@
+ 		}
+ 		children description="A patch definition" {
+ 			node fresh-cmd {
++				prop shell {
++					type string
++					required #false
++				}
+ 				children {
+ 					node $ {
+ 						value {
+diff -ruN a/test/dune b/test/dune
+--- a/test/dune
++++ b/test/dune
+@@ -1,9 +1,10 @@
+ (test
+  (name test_main)
+- (libraries nixtamal alcotest qcheck qcheck-alcotest jsont eio eio_main)
++ (libraries nixtamal alcotest qcheck qcheck-alcotest jsont eio eio_main jingoo)
+  (modules
+   test_main
+   test_input
++  test_fresh_shell
+   test_silo
+   test_lockfile
+   test_upgrade
+diff -ruN a/test/test_fresh_shell.ml b/test/test_fresh_shell.ml
+--- a/test/test_fresh_shell.ml
++++ b/test/test_fresh_shell.ml
+@@ -0,0 +1,98 @@
++open Alcotest
++open Nixtamal
++
++let parse text =
++	text |> KDL.of_string |> Result.get_ok
++	|> Manifest.Fresh_cmd.codec.of_kdl |> Result.get_ok |> Option.get
++
++let models _ = Jingoo.Jg_types.Tnull
++
++let execute ?(models = models) cmds =
++	Eio_main.run (fun env -> Eio.Switch.run (fun sw ->
++		Foreman.run_pipeline ~sw ~proc_mgr: (Eio.Stdenv.process_mgr env) ~models cmds
++	))
++
++let output ?models cmds =
++	match execute ?models cmds with
++	| Ok b -> Buffer.contents b
++	| Error (exn, stderr) -> fail (Printexc.to_string exn ^ ": " ^ Buffer.contents stderr)
++
++let literal shell value =
++	let open Input.Fresh.Cmd in
++	let t = Input.Template.make in
++	{pipeline = ({prog = t "printf"; args = [t "%s"; t value]}, []); shell}
++
++let suite = [
++	test_case "shell attribute roundtrip" `Quick (fun () ->
++		let cmd = parse {|fresh-cmd shell="nu" { $ http get "https://example.invalid"; | get tag_name; }|} in
++		check (option string) "shell" (Some "nu") cmd.shell;
++		let roundtrip = Manifest.Fresh_cmd.codec.to_kdl (Some cmd)
++			|> Manifest.Fresh_cmd.codec.of_kdl |> Result.get_ok in
++		check (testable Manifest.Fresh_cmd.pp Manifest.Fresh_cmd.equal) "roundtrip" (Some cmd) roundtrip
++	);
++	test_case "invalid shell attributes" `Quick (fun () ->
++		List.iter (fun text ->
++			let result = KDL.of_string text |> Result.get_ok |> Manifest.Fresh_cmd.codec.of_kdl in
++			check bool "rejected" true (Result.is_error result)
++		) [{|fresh-cmd shell="" { $ printf hi; }|}; {|fresh-cmd shell=1 { $ printf hi; }|}]
++	);
++	test_case "direct mode unchanged" `Quick (fun () ->
++		let cmd = parse {|fresh-cmd { $ printf "%s" "hello world"; | tr "a-z" "A-Z"; }|} in
++		check (option string) "no shell" None cmd.shell;
++		check string "output" "HELLO WORLD" (output cmd)
++	);
++	test_case "Nu builtins and subcommands" `Quick (fun () ->
++		let cmd = parse {|fresh-cmd shell="nu" { $ printf "%s" "{\"tag_name\":\"v1.2.3\"}"; | from json; | get tag_name; }|} in
++		check string "release" "v1.2.3" (String.trim (output cmd))
++	);
++	test_case "Nu and POSIX literal arguments" `Quick (fun () ->
++		let value = "x ' \" \\ $(id) $env.HOME ; ` [] | &\n\r\t終 y" in
++		List.iter (fun shell ->
++			check string "literal" value (output (literal (Some shell) value))
++		) ["nu"; "sh"]
++	);
++	test_case "Nu duration and filesize literals stay bare" `Quick (fun () ->
++		let render token =
++			Fresh_shell.script ~models ~shell: "nu" (literal (Some "nu") token).pipeline
++		in
++		List.iter (fun token ->
++			check string "bare" ("printf \"%s\" " ^ token) (render token)
++		) ["30sec"; "1.5min"; "512mib"];
++		List.iter (fun token ->
++			check bool "quoted" true (String.contains (render token) '"')
++		) ["30sec0"; "1.5.2sec"; "30secs"]
++	);
++	test_case "template output stays data" `Quick (fun () ->
++		let value = "\"; print injected; #" in
++		let models = function "payload" -> Jingoo.Jg_types.Tstr value | _ -> Jingoo.Jg_types.Tnull in
++		(* Preserve upstream template semantics, including its default HTML escaping. *)
++		let expected = Input.Template.fill ~models (Input.Template.make "{{payload}}") in
++		check string "literal template" expected (output ~models (literal (Some "nu") "{{payload}}"))
++	);
++	test_case "Nu does not load user configuration" `Quick (fun () ->
++		let cmd = literal (Some "/some/path/nu") "x" in
++		match Fresh_shell.argv ~models ~shell: "/some/path/nu" cmd.pipeline with
++		| [_; "--no-config-file"; "-c"; _] -> ()
++		| _ -> fail "missing configuration isolation"
++	);
++	test_case "Nu failure and stderr propagate" `Quick (fun () ->
++		let cmd = parse {|fresh-cmd shell="nu" { $ sh -c "echo unique-diagnostic >&2; exit 7"; | str trim; }|} in
++		match execute cmd with
++		| Ok _ -> fail "failed command succeeded"
++		| Error (_, stderr) -> check string "stderr" "unique-diagnostic" (String.trim (Buffer.contents stderr))
++	);
++	test_case "missing shell fails" `Quick (fun () ->
++		check bool "failure" true (Result.is_error (execute (literal (Some "/no/such/nixtamal-shell") "x")))
++	);
++	test_case "empty fresh value remains an error" `Quick (fun () ->
++		let cmd = literal (Some "nu") "" in
++		let input = Input.make ~name: (Name.Input.make "empty")
++			~kind: (Input.make_kind_file ~url: (Input.Template.make "https://example.invalid") ())
++			~fresh: (Input.Fresh.make ~cmd ()) () in
++		Eio_main.run (fun env -> Eio.Switch.run (fun sw ->
++			match Foreman.get_fresh ~sw ~proc_mgr: (Eio.Stdenv.process_mgr env) input with
++			| Error (`Fresh (_, `Cmd_output_empty)) -> ()
++			| _ -> fail "empty output was not rejected"
++		))
++	);
++]
+diff -ruN a/test/test_input.ml b/test/test_input.ml
+--- a/test/test_input.ml
++++ b/test/test_input.ml
+@@ -227,7 +227,7 @@
+ 			match fresh.cmd with
+ 			| None ->
+ 				Alcotest.fail "expected fresh command"
+-			| Some (curl, rest) ->
++			| Some {Input.Fresh.Cmd.pipeline = (curl, rest); _} ->
+ 				let progs =
+ 					curl :: rest
+ 					|> List.map (fun (cmd : Input.Fresh.Cmd.cmd) ->
+diff -ruN a/test/test_main.ml b/test/test_main.ml
+--- a/test/test_main.ml
++++ b/test/test_main.ml
+@@ -5,6 +5,7 @@
+ let () =
+ 	Alcotest.run "Nixtamal" [
+ 		"Input", Test_input.suite;
++		"Fresh shell", Test_fresh_shell.suite;
+ 		"Silo", Test_silo.suite;
+ 		"Lockfile", Test_lockfile.suite;
+ 		"Lock loader", Test_lock_loader.suite;

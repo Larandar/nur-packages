@@ -1,4 +1,4 @@
-{pkgs ? import <nixpkgs> {}}:
+{pkgs ? import (import ./nix/tamal {}).nixpkgs {}}:
 with builtins; let
   isDerivation = p: isAttrs p && p ? type && p.type == "derivation";
   isBuildable = p: let
