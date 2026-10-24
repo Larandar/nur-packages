@@ -1,0 +1,33 @@
+diff -ruN phrog-base/src/lockscreen.rs phrog-numpad/src/lockscreen.rs
+--- a/src/lockscreen.rs
++++ b/src/lockscreen.rs
+@@ -164,6 +164,29 @@
+             self.user_session_page.set(usp).unwrap();
+ 
+             self.parent_constructed();
++        if std::env::var_os("PHROG_HIDE_NUMPAD").is_some() {
++            fn hide_digits(widget: &gtk::Widget) {
++                if let Some(container) = widget.downcast_ref::<gtk::Container>() {
++                    for child in container.children() {
++                        if widget.type_().name() == "PhoshKeypad" {
++                            if let Some(button) = child.downcast_ref::<gtk::Button>() {
++                                if let Some(label) = button.child().and_then(|w| w.downcast::<gtk::Label>().ok()) {
++                                    let text = label.text();
++                                    if text.len() == 1 && text.chars().all(|c| c.is_ascii_digit()) {
++                                        child.set_no_show_all(true);
++                                        child.hide();
++                                        continue;
++                                    }
++                                }
++                            }
++                        }
++                        hide_digits(&child);
++                    }
++                }
++            }
++            hide_digits(self_obj.upcast_ref::<gtk::Widget>());
++        }
++
+         }
+     }
+ 

@@ -4,6 +4,7 @@
 ,"engram":{"sn":"engram-src","kd":[1,{"ft":1,"ur":"https://github.com/Gentleman-Programming/engram/archive/refs/tags/v3.5.4.tar.gz","ms":[],"ex":null}],"ha":{"al":0,"vl":"sha256-gFotVxsQXqgE5jfk17X/yP/kNvwNPcPWi+OWu2H19Bg="},"fv":"v3.5.4","ps":[]}
 ,"kasetto":{"sn":"kasetto-src","kd":[1,{"ft":1,"ur":"https://github.com/pivoshenko/kasetto/archive/refs/tags/v3.11.0.tar.gz","ms":[],"ex":null}],"ha":{"al":0,"vl":"sha256-rDdXLgyy/4Bs1+bK/1k4zxjOzZXGBdzbqLm7zfqONJo="},"fv":"v3.11.0","ps":[]}
 ,"nixtamal":{"sn":"nixtamal-src","kd":[3,{"rp":"https://darcs.toastal.in.th/nixtamal/next/","ms":[],"dt":"2026-10-24T16:26:40Z","rf":[0,[0,"./darcs_context/nixtamal.txt"]],"lw":"7c74155f6ff4291325477880ea523704abb472a0"}],"ha":{"al":0,"vl":"sha256-YwEfttoD+6vb3lt7ryonTXJI8QsdeWlGS4xsW7k7oWc="},"fv":"7c74155f6ff4291325477880ea523704abb472a0","ps":[]}
+,"phrog":{"sn":"phrog-src","kd":[1,{"ft":1,"ur":"https://github.com/samcday/phrog/archive/refs/tags/0.53.0.tar.gz","ms":[],"ex":null}],"ha":{"al":0,"vl":"sha256-ojr5k6eYONMNDk/DwWU6RxCDv9TrnUskFqL+2X0DIT0="},"fv":"0.53.0","ps":[]}
 }
 ,"p":{}
 }

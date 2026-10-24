@@ -1,0 +1,41 @@
+diff -ruN phrog-base/src/shell.rs phrog-rotation/src/shell.rs
+--- a/src/shell.rs
++++ b/src/shell.rs
+@@ -125,14 +125,37 @@
+                             warn!("Failed to execute first-run app: {:?}", err);
+                         }
+                         this.obj().set_locked(true);
++                    apply_greeter_rotation();
+                     }));
+                 } else {
+                     shell.obj().set_locked(true);
++                    apply_greeter_rotation();
+                 }
+             });
+         }
+     }
+ 
++
++fn apply_greeter_rotation() {
++    let (Ok(output), Ok(transform)) = (
++        std::env::var("PHROG_OUTPUT"),
++        std::env::var("PHROG_OUTPUT_TRANSFORM"),
++    ) else { return; };
++    // Let the initial lock's Wayland requests leave the GTK main loop
++    // before applying the fixed greeter orientation through Phoc.
++    glib::idle_add_local_once(move || {
++        spawn_future_local(async move {
++            let result = spawn_blocking(move || {
++                Command::new("@wlrRandr@")
++                    .args(["--output", &output, "--transform", &transform])
++                    .status()
++            }).await;
++            if !matches!(result, Ok(Ok(status)) if status.success()) {
++                warn!("Failed to apply greeter output rotation: {:?}", result);
++            }
++        });
++    });
++}
+     impl ShellImpl for Shell {
+         fn get_lockscreen_type(&self) -> Type {
+             Lockscreen::static_type()
