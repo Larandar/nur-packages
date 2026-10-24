@@ -75,4 +75,16 @@ inputs {
 			$ nu "--no-config-file" "nix/fresh.nu" locked-dep celld v8
 		}
 	}
+	nu-plugin-ws {
+		git fetch-time=eval {
+			repository "https://github.com/alex-kattathra-johnson/nu_plugin_ws.git"
+			branch main
+		}
+	}
+	nu-plugin-mongo {
+		git fetch-time=eval {
+			repository "https://github.com/WindSoilder/nu_plugin_mongo.git"
+			branch main
+		}
+	}
 }

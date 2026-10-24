@@ -1,0 +1,23 @@
+# A binary value is no longer a bare `Vec<u8>`: `Value::Binary` carries a
+# `SharedCow<Vec<u8>>`, shared until someone writes to it. Where upstream
+# hands the bytes on as a `Vec`, they are copied out with `.to_vec()`. Found
+# compiling against nu-protocol 0.116.0; which release made the change was
+# not established.
+#
+# Matched as the `val` given to `bytes:` inside the `Value::Binary` arm.
+id: binary-is-shared
+language: rust
+rule:
+  all:
+    - kind: identifier
+    - regex: '^val$'
+    - inside:
+        kind: field_initializer
+        regex: '^bytes:'
+    - inside:
+        stopBy: end
+        kind: match_arm
+        has:
+          kind: match_pattern
+          regex: '^Value::Binary\b'
+fix: val.to_vec()
