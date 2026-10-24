@@ -46,11 +46,9 @@ inputs {
 		}
 	}
 	neocursor {
-		archive fetch-time=eval {
-			url "https://github.com/teocns/neocursor.nvim/archive/refs/tags/{{fresh_value}}.tar.gz"
-		}
-		fresh-cmd {
-			$ nu "--no-config-file" "nix/fresh.nu" release "https://github.com/teocns/neocursor.nvim"
+		git fetch-time=eval {
+			repository "https://github.com/teocns/neocursor.nvim.git"
+			branch main
 		}
 	}
 	snix {
