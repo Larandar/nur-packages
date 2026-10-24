@@ -59,4 +59,20 @@ inputs {
 			branch canon
 		}
 	}
+	celld {
+		archive fetch-time=eval {
+			url "https://github.com/denoland/celld/archive/refs/tags/{{fresh_value}}.tar.gz"
+		}
+		fresh-cmd {
+			$ nu "--no-config-file" "nix/fresh.nu" release "https://github.com/denoland/celld"
+		}
+	}
+	celld-rusty-v8 {
+		file {
+			url "https://github.com/denoland/rusty_v8/releases/download/v{{fresh_value}}/librusty_v8_release_x86_64-unknown-linux-gnu.a.gz"
+		}
+		fresh-cmd {
+			$ nu "--no-config-file" "nix/fresh.nu" locked-dep celld v8
+		}
+	}
 }

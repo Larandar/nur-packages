@@ -32,4 +32,8 @@ in {
   phrog = pins.package "phrog" ./pkgs/phrog {};
   neocursor = pins.package "neocursor" ./pkgs/neocursor {};
   snix = pins.package "snix" ./pkgs/snix {};
+  celld = pins.package "celld" ./pkgs/celld {
+    rustyV8 = inputs.celld-rusty-v8;
+    rustyV8Version = (pkgs.lib.importJSON ./nix/tamal/lock.json).i.celld-rusty-v8.fv;
+  };
 }
