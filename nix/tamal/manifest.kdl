@@ -30,11 +30,9 @@ inputs {
 		}
 	}
 	kasetto {
-		archive fetch-time=eval {
-			url "https://github.com/pivoshenko/kasetto/archive/refs/tags/{{fresh_value}}.tar.gz"
-		}
-		fresh-cmd {
-			$ nu "--no-config-file" "nix/fresh.nu" release "https://github.com/pivoshenko/kasetto"
+		git fetch-time=eval {
+			repository "https://github.com/pivoshenko/kasetto.git"
+			branch main
 		}
 	}
 	phrog {
