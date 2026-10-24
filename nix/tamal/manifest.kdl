@@ -21,4 +21,12 @@ inputs {
 			$ curl -Ls "https://darcs.toastal.in.th/nixtamal/next/_darcs/weak_hash"
 		}
 	}
+	engram {
+		archive fetch-time=eval {
+			url "https://github.com/Gentleman-Programming/engram/archive/refs/tags/{{fresh_value}}.tar.gz"
+		}
+		fresh-cmd {
+			$ nu "--no-config-file" "nix/fresh.nu" release "https://github.com/Gentleman-Programming/engram"
+		}
+	}
 }

@@ -26,4 +26,6 @@ in {
 
   example-package = pkgs.callPackage ./pkgs/example-package {};
   inherit nixtamal;
+
+  engram = pins.package "engram" ./pkgs/engram {};
 }
