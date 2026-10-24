@@ -31,4 +31,5 @@ in {
   kasetto = pins.package "kasetto" ./pkgs/kasetto {};
   phrog = pins.package "phrog" ./pkgs/phrog {};
   neocursor = pins.package "neocursor" ./pkgs/neocursor {};
+  snix = pins.package "snix" ./pkgs/snix {};
 }

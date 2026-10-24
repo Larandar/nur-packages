@@ -64,6 +64,35 @@ let
 			// (if isNonemptyString name then { inherit name; } else { }))
 		) kind.ur kind.ms;
 
+	builtin-fetch-git = { input-name, name, kind }:
+		let
+			ref =
+				let
+					type = builtins.elemAt kind.rf 0;
+					valu = builtins.elemAt kind.rf 1;
+				in
+				if type == 0 then # ref
+					valu
+				else if type == 1 then # branch
+					"refs/heads/${valu}"
+				else if type == 2 then # tag
+					"refs/tags/${valu}"
+				else
+					throw "Unsupported reference type “${builtins.toString type}”.";
+		in
+		try-fetch input-name (url:
+			let
+				args = {
+					inherit url ref;
+					rev = kind.lr;
+					submodules = kind.sm;
+					shallow = true;
+				}
+				// (if builtins.compareVersions builtins.nixVersion "2.26" < 0 then { } else { lfs = kind.lf; })
+				// (if isNonemptyString name then { inherit name; } else { });
+			in
+			builtins.fetchGit args
+		) kind.rp kind.ms;
 
 	builtin-to-input = input-name: input:
 		let
@@ -74,6 +103,8 @@ let
 		in
 		if k == 1 then
 			builtin-fetch-tarball { inherit input-name name hash kind; }
+		else if k == 2 then
+			builtin-fetch-git { inherit input-name name kind; }
 		else
 			throw "Unsupported builtin fetcher “${builtins.toString k}”";
 
@@ -113,6 +144,25 @@ let
 			   )
 			// lib.optionalAttrs (isNonemptyString name) { inherit name; }
 			// lib.optionalAttrs (isNonemptyString kind.ex) { extension = kind.ex; }
+		);
+
+	fetch-git = { input-name, name, kind, hash }:
+		let
+			has-mirrors = isNonemptyList kind.ms;
+			has-mirror-support = pkgs.fetchgit.__functionArgs ? "mirrors";
+		in
+		lib.warnIf (has-mirrors && !has-mirror-support)
+			"Upstream pkgs.fetchgit doesn’t yet support mirrors for 「${input-name}」"
+			pkgs.fetchgit ({
+				url = kind.rp;
+				rev = kind.lr;
+				fetchSubmodules = kind.sm;
+				fetchLFS = kind.lf;
+				deepClone = false;
+				hash = hash.vl;
+			}
+			// lib.optionalAttrs (isNonemptyString name) { inherit name; }
+			// lib.optionalAttrs (has-mirrors && has-mirror-support) { mirrors = kind.ms; }
 		);
 
 	fetch-darcs = { input-name, name, kind, hash }:
@@ -167,6 +217,14 @@ let
 						fetch-zip { inherit input-name name kind hash; }
 					else if fetch-time == 1 then
 						builtin-fetch-tarball { inherit input-name name kind hash; }
+					else
+						throw "Unsupported fetch time ${fetch-time}."
+				else if k == 2 then
+					let fetch-time = kind.ft; in
+					if fetch-time == 0 then
+						fetch-git { inherit input-name name kind hash; }
+					else if fetch-time == 1 then
+						builtin-fetch-git { inherit input-name name kind; }
 					else
 						throw "Unsupported fetch time ${fetch-time}."
 				else
