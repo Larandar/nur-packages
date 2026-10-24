@@ -1,6 +1,7 @@
 # Take nixpkgs only through `pkgs`; never import <nixpkgs> below.
 {pkgs ? import (import ./nix/tamal {}).nixpkgs {}}: let
-  inputs = import ./nix/tamal {bootstrap-pkgs = pkgs;};
+  pins = import ./nix/pins.nix {inherit pkgs;};
+  inherit (pins) inputs;
   nixtamal = pkgs.callPackage ./pkgs/nixtamal {
     inherit (pkgs) nixtamal;
     src = inputs.nixtamal;
@@ -16,6 +17,10 @@ in {
         enabledPatches = ["shell"];
         packages = [pkgs.nushell];
       }).bin
+      # `nix/fresh.nu` reads tags with `git ls-remote`.
+      pkgs.git
+      # Syntax-aware conflict resolution: `jj resolve --tool mergiraf`.
+      pkgs.mergiraf
     ];
   };
 
