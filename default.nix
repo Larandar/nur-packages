@@ -28,4 +28,5 @@ in {
   inherit nixtamal;
 
   engram = pins.package "engram" ./pkgs/engram {};
+  kasetto = pins.package "kasetto" ./pkgs/kasetto {};
 }
