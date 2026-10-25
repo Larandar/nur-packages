@@ -13,6 +13,8 @@
   stylix = themes.stylixOf config;
   theme = themes.render {inherit stylix;} cfg;
 in {
+  imports = [./remote.nix];
+
   options.programs.waterfox = common.options pkgs // themes.options (config.lib ? stylix);
 
   config = lib.mkMerge [

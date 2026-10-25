@@ -42,6 +42,17 @@
 
   nixos = nixosWith {};
   nixosTing = nixosWith {programs.waterfox.theme = "ting";};
+  # The remote interface for one user, the firewall refusing the others.
+  nixosRemote = nixosWith {
+    users.users.alice = {
+      isNormalUser = true;
+      uid = 1000;
+    };
+    programs.waterfox.remote = {
+      enable = true;
+      users.alice = 9300;
+    };
+  };
 
   homeWith = extra: pkgs: homeDirectory:
     (import "${homeManager}/modules" {
@@ -65,6 +76,23 @@
     }).config;
 
   homeOn = homeWith {};
+  # A Home Manager Waterfox on a host whose programs.waterfox.remote is on, Vicinae as its address bar.
+  homeVicinae =
+    homeWith {
+      _module.args.osConfig.programs.waterfox.remote = {
+        enable = true;
+        settings = {
+          users.waterfox = 9300;
+          rangeSize = 10;
+          launcherAlias = "@l";
+        };
+      };
+      programs.waterfox.vicinae = {
+        enable = true;
+        extension = runCommand "vicinae-waterfox-ctl" {} "mkdir $out";
+      };
+    }
+    pkgs "/home/waterfox";
   home = homeOn pkgs "/home/waterfox";
   # The top level picks Ting; the `plain` profile keeps Waterfox's own look.
   homeTing =
@@ -166,6 +194,31 @@ in
         grep -qF '@import url("palette.css")' ${file.".waterfox/default/chrome/userChrome.css".source}
         grep -qF -- '--vt-accent-rgb: 34 211 238;' ${file.".waterfox/default/chrome/palette.css".source}
         grep -qF 'user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);' ${file.".waterfox/default/user.js".source}
+      '';
+    nixos-module-remote = let
+      package = nixosRemote.programs.waterfox.package;
+      unit = nixosRemote.systemd.user.services.waterfox-remote;
+    in
+      checked "waterfox-nixos-module-remote" {
+        "the daemon for alice only" = unit.unitConfig.ConditionUser == ["|alice"];
+        "the daemon installed" = lib.elem nixosRemote.programs.waterfox.remote.package nixosRemote.environment.systemPackages;
+        "alice's range refused to others" = lib.hasInfix "--dport 9300:9309 -m owner ! --uid-owner alice" nixosRemote.networking.firewall.extraCommands;
+        "no interface without remote" = !(lib.hasInfix "9300" (builtins.toJSON nixos.programs.waterfox.remote.settings.users));
+      } ''
+        grep -qF 'waterfox_remote_base=9300' ${package}/bin/waterfox
+      '';
+    home-module-vicinae = let
+      package = homeVicinae.programs.waterfox.finalPackage;
+    in
+      checked "waterfox-home-module-vicinae" {
+        "the extension in Vicinae" = lib.length homeVicinae.programs.vicinae.extensions == 1;
+        "web:// opens through it" = homeVicinae.xdg.mimeApps.defaultApplications."x-scheme-handler/web" == ["waterfox-web.desktop"];
+        "the handler installed" = lib.any (p: lib.hasInfix "waterfox-web" p.name) homeVicinae.home.packages;
+      } ''
+        grep -qF 'vicinae://launch/@larandar/waterfox-ctl/web' ${package}/lib/waterfox/waterfox.cfg
+        grep -qF 'key_newNavigatorTab' ${package}/lib/waterfox/waterfox.cfg
+        grep -qF 'waterfox_remote_base=9300' ${package}/bin/waterfox
+        grep -qF '"DisableTelemetry":true' ${package}/lib/waterfox/distribution/policies.json
       '';
     home-module-darwin = let
       darwinHome = homeOn darwinPkgs "/Users/waterfox";

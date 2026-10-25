@@ -152,5 +152,10 @@ in rec {
     cfg.basePackage.override {
       inherit (cfg) preferences extensions chrome searchEngine desktopEntry icon wmClass newTabCommand loginStorage;
       policies = policies pkgs cfg;
+      # The remote debugging interface, where the host enables programs.waterfox.remote (remote.nix).
+      remote =
+        if cfg.remote.enable or false
+        then cfg.remote.settings
+        else null;
     };
 }

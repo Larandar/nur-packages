@@ -5,11 +5,17 @@
 # A `theme` is a profile's: each profile takes the top level's unless it picks its own, and wears it as its chrome/
 # files and the preferences they need; companions land in $XDG_CONFIG_HOME/<theme>/<profile>/. Policies are the
 # install's, so the extensions' styles follow the top level's theme.
+#
+# The remote debugging interface is the system's (nixosModules.waterfox's programs.waterfox.remote: the daemon and the
+# firewall rule); a Home Manager Waterfox on that host takes its settings from there. `vicinae` makes Vicinae the
+# address bar over it: Ctrl+T opens the waterfox-ctl extension's web view, and `web://<text>` URIs open through the
+# extension's `open` command. The extension is the host's to supply.
 {
   config,
   lib,
   pkgs,
   modulesPath,
+  osConfig ? null,
   ...
 }: let
   themes = import ./themes.nix {inherit lib;};
@@ -21,6 +27,28 @@
   };
   themed = lib.filterAttrs (_: profile: profile.theme != null) cfg.profiles;
   topTheme = render cfg;
+  # The system's programs.waterfox.remote, when it is on.
+  remote =
+    if (osConfig.programs.waterfox.remote.enable or false)
+    then osConfig.programs.waterfox.remote.settings
+    else null;
+  vicinae = lib.getExe cfg.vicinae.package;
+  # web://<text>, percent-encoded as a URI: the text goes to the extension's `open` command, which decides what it
+  # opens (an address, or a search).
+  webHandler = pkgs.writers.writeNuBin "waterfox-web-open" ''
+    def main [uri: string] {
+      let text = $uri | str replace --regex '^(?i)web://' ''' | url decode
+      let arguments = {target: $text} | to json --raw | url encode --all
+      ^${vicinae} deeplink $"vicinae://launch/@larandar/waterfox-ctl/open?arguments=($arguments)"
+    }
+  '';
+  webEntry = pkgs.makeDesktopItem {
+    name = "waterfox-web";
+    desktopName = "Waterfox (web://)";
+    exec = "${lib.getExe webHandler} %u";
+    mimeTypes = ["x-scheme-handler/web"];
+    noDisplay = true;
+  };
 in {
   imports = [
     (import "${modulesPath}/programs/firefox/mkFirefoxModule.nix" {
@@ -44,6 +72,19 @@ in {
   options.programs.waterfox =
     themes.options (config.lib ? stylix)
     // {
+      vicinae = {
+        enable = lib.mkEnableOption "Vicinae as Waterfox's address bar: Ctrl+T opens the waterfox-ctl web view, and web:// URIs open through it";
+        package = lib.mkOption {
+          type = lib.types.package;
+          default = pkgs.vicinae;
+          defaultText = lib.literalExpression "pkgs.vicinae";
+          description = "The Vicinae whose CLI sends the deeplinks: the same release as the running server.";
+        };
+        extension = lib.mkOption {
+          type = lib.types.package;
+          description = "The `@larandar/waterfox-ctl` extension (viciting's `vicinae-waterfox-ctl`), installed into Vicinae.";
+        };
+      };
       profiles = lib.mkOption {
         type = lib.types.attrsOf (lib.types.submodule ({config, ...}: let
           theme = render config;
@@ -63,9 +104,27 @@ in {
       programs.waterfox.package = lib.mkDefault (
         if pkgs.stdenv.hostPlatform.isDarwin
         then null
-        else (import ../.. {inherit pkgs;}).waterfox
+        else
+          (import ../.. {inherit pkgs;}).waterfox.override {
+            inherit remote;
+            newTabCommand =
+              if cfg.vicinae.enable
+              then [vicinae "deeplink" "vicinae://launch/@larandar/waterfox-ctl/web"]
+              else null;
+          }
       );
     }
+    (lib.mkIf (cfg.enable && cfg.vicinae.enable) {
+      assertions = [
+        {
+          assertion = remote != null;
+          message = "programs.waterfox.vicinae needs the system's programs.waterfox.remote: the extension drives Waterfox over its Varlink socket.";
+        }
+      ];
+      home.packages = [webHandler webEntry];
+      xdg.mimeApps.defaultApplications."x-scheme-handler/web" = "waterfox-web.desktop";
+      programs.vicinae.extensions = [cfg.vicinae.extension];
+    })
     (lib.mkIf (cfg.enable && cfg.theme != null) {
       assertions = themes.assertions stylix cfg;
       programs.waterfox.policies = topTheme.policies;
