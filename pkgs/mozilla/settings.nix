@@ -1,5 +1,6 @@
-# Preference rendering, shared by the Linux install (AutoConfig) and installs
-# that are read-only (user.js, e.g. the darwin DMG). A preference is a bare
+# Settings rendering, shared by the Linux install (AutoConfig, policies.json)
+# and installs this repository does not build (user.js; macOS defaults over
+# Homebrew's app). A preference is a bare
 # bool/int/string (locked) or `{ value; status; }`, status one of `locked`,
 # `default` (the user may change it) or `user` (re-asserted every launch).
 {lib}: let
@@ -50,6 +51,44 @@ in {
   # user.js knows only user values: every status becomes `user_pref`, which
   # Waterfox re-reads at each start. Nothing can be locked from a profile.
   userJs = render (_: "user_pref");
+  # Preferences as the `Preferences` policy, for installs without AutoConfig
+  # (macOS defaults). The browser accepts only some branches there (browser.,
+  # extensions., network., security., ui., ...; see its policy templates) and
+  # ignores the rest.
+  preferencePolicy = preferences: {
+    Preferences =
+      lib.mapAttrs (name: raw: let
+        pref = normalise name raw;
+      in {
+        Value = pref.value;
+        Status = pref.status;
+      })
+      preferences;
+  };
+  # Extensions, list of { id; xpi; }, force-installed from the store.
+  extensionPolicy = extensions: {
+    ExtensionSettings = lib.listToAttrs (
+      map (
+        extension:
+          lib.nameValuePair extension.id {
+            installation_mode = "force_installed";
+            install_url = "file://${extension.xpi}";
+          }
+      )
+      extensions
+    );
+  };
+  # Search engines added, each { Name; URLTemplate; ... }, and the locked
+  # default among them (a name, or null).
+  searchPolicy = engines: default:
+    lib.optionalAttrs (engines != []) {
+      SearchEngines =
+        {
+          Add = engines;
+          PreventInstalls = true;
+        }
+        // lib.optionalAttrs (default != null) {Default = default;};
+    };
   # The TRR preferences privateDns sets, for consumers without the NixOS
   # module (the darwin user.js).
   trrPreferences = {

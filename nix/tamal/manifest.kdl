@@ -102,4 +102,11 @@ inputs {
 			branch master
 		}
 	}
+	// Evaluates darwinModules in package tests; nothing builds from it.
+	nix-darwin {
+		git fetch-time=eval {
+			repository "https://github.com/nix-darwin/nix-darwin.git"
+			branch master
+		}
+	}
 }

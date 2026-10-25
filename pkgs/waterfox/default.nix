@@ -7,8 +7,9 @@
   version,
   # Named apart from the overlay's `waterfox-unwrapped`, which is this package's `unwrapped`.
   unwrapped ? callPackage ./unwrapped.nix {inherit src version;},
-  # home-manager's source, for the module tests; null leaves them out.
+  # home-manager's and nix-darwin's sources, for the module tests; null leaves theirs out.
   homeManager ? null,
+  nixDarwin ? null,
   # Declared so home-manager's Firefox modules see the wrapFirefox interface (they test for `cfg`); passed through.
   cfg ? {},
   extraPolicies ? {},
@@ -18,7 +19,7 @@
   pkcs11Modules ? [],
   ...
 } @ settings:
-callPackage ../mozilla/wrap.nix (removeAttrs settings ["lib" "callPackage" "src" "version" "homeManager"]
+callPackage ../mozilla/wrap.nix (removeAttrs settings ["lib" "callPackage" "src" "version" "homeManager" "nixDarwin"]
   // {
     inherit unwrapped;
     binaryName = "waterfox";
@@ -26,6 +27,6 @@ callPackage ../mozilla/wrap.nix (removeAttrs settings ["lib" "callPackage" "src"
     passthru = {
       # Release notes come from the GitHub repository whose tags the pin follows; the binary comes from Waterfox's CDN.
       upstreamRepository = "https://github.com/BrowserWorks/waterfox";
-      tests = lib.optionalAttrs (homeManager != null) (removeAttrs (callPackage ./tests.nix {inherit homeManager;}) ["override" "overrideDerivation"]);
+      tests = lib.optionalAttrs (homeManager != null) (removeAttrs (callPackage ./tests.nix {inherit homeManager nixDarwin;}) ["override" "overrideDerivation"]);
     };
   })

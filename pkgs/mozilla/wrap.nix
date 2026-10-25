@@ -168,27 +168,13 @@
   # Updates come from the pin; the browser never offers its own.
   allPolicies =
     lib.recursiveUpdate (
-      {
-        DisableAppUpdate = true;
-        ExtensionSettings = lib.listToAttrs (
-          map (
-            extension:
-              lib.nameValuePair extension.id {
-                installation_mode = "force_installed";
-                install_url = "file://${extension.xpi}";
-              }
-          )
-          extensions
-        );
-      }
-      // lib.optionalAttrs (engines != []) {
-        SearchEngines =
-          {
-            Add = engines;
-            PreventInstalls = true;
-          }
-          // lib.optionalAttrs (searchEngine != null) {Default = searchEngine.name;};
-      }
+      {DisableAppUpdate = true;}
+      // settings.extensionPolicy extensions
+      // settings.searchPolicy engines (
+        if searchEngine != null
+        then searchEngine.name
+        else null
+      )
     )
     (lib.recursiveUpdate policies extraPolicies);
   policiesJson = builtins.toJSON {policies = allPolicies;};

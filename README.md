@@ -37,6 +37,14 @@ packages also take nixpkgs' `wrapFirefox` arguments (`extraPolicies`,
 `extraPrefs`, `nativeMessagingHosts`, ...), so NixOS's `programs.firefox` can
 drive them.
 
+On macOS, Waterfox comes from Homebrew and its app stays as the cask installs
+it: `darwinModules.waterfox` adds the `waterfox` cask and writes `policies`,
+`preferences` (as the `Preferences` policy), `extensions`, `certificates` and
+`searchEngine` to the app's system-wide defaults, which Waterfox reads at
+start. `homeModules.waterfox` installs no package there and keeps the profiles
+in `~/Library/Application Support/Waterfox`, its policies in the user's
+defaults.
+
 Without flakes:
 
 ```sh
@@ -46,7 +54,8 @@ nix-build -A example-package
 ## Layout
 
 - `pkgs/` — packages, registered in `default.nix`
-- `lib/`, `overlays/`, `nixos-modules/` — library functions, overlays, NixOS modules
+- `lib/`, `overlays/` — library functions, overlays
+- `modules/` — modules, exported by `nixos-modules/`, `darwin-modules/` and `home-modules/`
 - `ci.nix` — the buildable and cacheable package set
 - `nix/tamal/` — every pin, managed by [nixtamal](https://nixtamal.toast.al); see `AGENTS.md`
 
