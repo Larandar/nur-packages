@@ -60,8 +60,8 @@ Generated output (per configuration):
 chrome/userChrome.css   the chrome (references --vt-* vars, no colors)
 chrome/palette.css      THE runtime contract — swap me, not the chrome
 chrome/userContent.css  about: pages + DarkReader web theming (colors inlined)
-/etc/ting/sidebery.css     paste into Sidebery Styles editor
-/etc/ting/sidebery.json    optional full-settings import
+/etc/ting/sidebery.css     Sidebery's sidebar CSS (also given as policy)
+/etc/ting/sidebery.json    Sidebery's styles as an import file
 /etc/ting/darkreader.json  Dark Reader settings snapshot
                               (only when darkreader.mode = "extension")
 ```
@@ -120,16 +120,17 @@ AutoConfig registers for every profile, and the [prefs](#prefs) its
 preferences; in Home Manager they are the profile's `chrome/` files and
 `user.js`.
 
-Then install the Sidebery companion (once):
+Sidebery's styles come with it: the theme gives Sidebery's sidebar and
+group CSS as the `3rdparty` policy, which Sidebery reads as managed storage
+before its own, so they follow the palette on every switch and its Styles
+editor no longer changes them. Its other settings stay Sidebery's. In Home
+Manager the policies are the install's, so they follow the top level's
+`theme`, not a profile's.
 
-1. Install [Sidebery](https://addons.mozilla.org/firefox/addon/sidebery/),
-   open it, and pin it to the left edge ("Sidebar position: left").
-2. Open `/etc/ting/sidebery.css` (Home Manager:
-   `$XDG_CONFIG_HOME/ting/<profile>/sidebery.css`) and paste its content into
-   **Sidebery settings → Styles editor → Sidebar CSS**.
-   (Or Settings → *Import settings* with `/etc/ting/sidebery.json`,
-   which also sets the CSS variables.)
-3. Recommended Sidebery settings: nav bar layout **horizontal**,
+1. Install [Sidebery](https://addons.mozilla.org/firefox/addon/sidebery/)
+   (force-install it through `policies.ExtensionSettings` to keep it
+   declarative) and pin it to the left edge ("Sidebar position: left").
+2. Recommended Sidebery settings: nav bar layout **horizontal**,
    tab height comes from the stylesheet already.
 
 Switch, restart Waterfox, done.
@@ -306,8 +307,8 @@ If your compositor can't blur (or you want pixel-perfect screenshots):
 * **Window buttons overlap the URL bar** — that's the `float` mode doing
   its job; the nav bar already reserves space via padding. Tune
   `#nav-bar { padding-left/right }` via `extraCss`.
-* **Sidebery looks unstyled** — paste `/etc/ting/sidebery.css`
-  into the Styles editor (step 2 of Quick start).
+* **Sidebery looks unstyled** — check `about:policies` lists `3rdparty`
+  for Sidebery's id, then restart Waterfox.
 * **Right-hand sidebar** — the floating card margins are symmetric, but
   content-card padding assumes a left sidebar; flip it with `extraCss`.
 

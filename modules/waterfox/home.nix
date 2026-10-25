@@ -3,7 +3,8 @@
 # (chrome, newTabCommand, loginStorage, ...) go through `programs.waterfox.package = pkgs.waterfox.override { ... }`.
 # On macOS the app is Homebrew's, untouched: no package, and the policies go to the user's defaults for its bundle id.
 # A `theme` is a profile's: each profile takes the top level's unless it picks its own, and wears it as its chrome/
-# files and the preferences they need; companions land in $XDG_CONFIG_HOME/<theme>/<profile>/.
+# files and the preferences they need; companions land in $XDG_CONFIG_HOME/<theme>/<profile>/. Policies are the
+# install's, so the extensions' styles follow the top level's theme.
 {
   config,
   lib,
@@ -19,6 +20,7 @@
     inherit (pkgs.stdenv.hostPlatform) isDarwin;
   };
   themed = lib.filterAttrs (_: profile: profile.theme != null) cfg.profiles;
+  topTheme = render cfg;
 in {
   imports = [
     (import "${modulesPath}/programs/firefox/mkFirefoxModule.nix" {
@@ -64,6 +66,10 @@ in {
         else (import ../.. {inherit pkgs;}).waterfox
       );
     }
+    (lib.mkIf (cfg.enable && cfg.theme != null) {
+      assertions = themes.assertions stylix cfg;
+      programs.waterfox.policies = topTheme.policies;
+    })
     (lib.mkIf (cfg.enable && themed != {}) {
       assertions = lib.concatLists (lib.mapAttrsToList (_: themes.assertions stylix) themed);
       # userChrome.css and userContent.css are the profile's own options; the rest of chrome/ goes beside them.

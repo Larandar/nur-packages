@@ -142,12 +142,25 @@ in
       checked "waterfox-nixos-module-ting" {
         "Sidebery's companion in /etc" = nixosTing.environment.etc ? "ting/sidebery.css";
         "no chrome without a theme" = nixos.programs.waterfox.chrome == null;
+        "Dark Reader's settings in its 4.9 shape" = let
+          darkreader = builtins.fromJSON nixosTing.environment.etc."ting/darkreader.json".text;
+        in
+          darkreader.theme.darkSchemeBackgroundColor
+          != null
+          && darkreader.automation
+          == {
+            enabled = true;
+            mode = "system";
+            behavior = "Scheme";
+          }
+          && !(darkreader ? siteList);
       } ''
         chrome=$(sed -n 's|.*newURI("file://\(/nix/store/[^/]*\)/".*|\1|p' ${package}/lib/waterfox/waterfox.cfg)
         test -s "$chrome/userChrome.css"
         grep -qF '@import url("palette.css")' "$chrome/userChrome.css"
         test -s "$chrome/palette.css"
         grep -qF 'lockPref("toolkit.legacyUserProfileCustomizations.stylesheets", true);' ${package}/lib/waterfox/waterfox.cfg
+        grep -qF '"3rdparty":{"Extensions":{"{3c078156-979c-498b-8990-85f7987dd929}":{"groupCSS":' ${package}/lib/waterfox/distribution/policies.json
       '';
     home-module-ting = let
       file = homeTing.home.file;
@@ -157,6 +170,8 @@ in
         "the plain profile has no theme preferences" = !(homeTing.programs.waterfox.profiles.plain.settings ? "toolkit.legacyUserProfileCustomizations.stylesheets");
         "the plain profile has no chrome" = !(file ? ".waterfox/plain/chrome/userChrome.css" || file ? ".waterfox/plain/chrome/palette.css");
         "Sidebery's companion per profile" = homeTing.xdg.configFile ? "ting/default/sidebery.css";
+        "Sidebery's styles as managed storage" = homeTing.programs.waterfox.policies."3rdparty".Extensions."{3c078156-979c-498b-8990-85f7987dd929}" ? sidebarCSS;
+        "no policy without a theme" = !(home.programs.waterfox.policies ? "3rdparty");
         "no chrome without a theme" = !(home.home.file ? ".waterfox/default/chrome/userChrome.css");
       } ''
         grep -qF '@import url("palette.css")' ${file.".waterfox/default/chrome/userChrome.css".source}

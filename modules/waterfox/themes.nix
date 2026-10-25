@@ -3,6 +3,7 @@
 {lib}: let
   ting = import ../../pkgs/ting-chrome/lib {inherit lib;};
   palettes = ["ultraviolet" "midnight" "porcelain"];
+  sideberyId = "{3c078156-979c-498b-8990-85f7987dd929}";
 
   # `defaults` holds each option's default, and its text where needed: the built-in ones at the top level, the top level's values in a
   # Home Manager profile.
@@ -93,8 +94,9 @@ in {
       message = "programs.waterfox.themes.ting.paletteSource = \"stylix\" needs stylix on this host.";
     };
 
-  # `cfg.theme` rendered: `files`, chrome/ file name -> text; `preferences` the chrome needs; `companions`, file name ->
-  # text, for extensions to import. Null when no theme is chosen.
+  # `cfg.theme` rendered: `files`, chrome/ file name -> text; `preferences` the chrome needs; `policies` that hand
+  # extensions their part (Sidebery's styles, as managed storage, which it reads before its own); `companions`, file
+  # name -> text, for extensions to import by hand. Null when no theme is chosen.
   render = {
     stylix,
     isDarwin ? false,
@@ -122,6 +124,11 @@ in {
         darkreader = t.compose.darkreader or {};
         minimalism = t.compose.minimalism or {};
         inherit isDarwin;
+      };
+      policies = lib.optionalAttrs (composed.sidebery.json != "") {
+        "3rdparty".Extensions.${sideberyId} = {
+          inherit (builtins.fromJSON composed.sidebery.json) sidebarCSS groupCSS;
+        };
       };
       companions = lib.filterAttrs (_: text: text != "") {
         "sidebery.css" = composed.sidebery.css;

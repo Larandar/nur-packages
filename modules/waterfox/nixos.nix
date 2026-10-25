@@ -1,5 +1,6 @@
 # programs.waterfox for NixOS: Waterfox with its settings baked into the install, for every user. A `theme` becomes the
-# install's `chrome` and the preferences it needs; its companions land in /etc/<theme>/.
+# install's `chrome`, the preferences it needs and the policies that style its extensions; its companions land in
+# /etc/<theme>/.
 {
   config,
   lib,
@@ -22,6 +23,7 @@ in {
       programs.waterfox = {
         chrome = lib.mkDefault (themes.chromeDirectory pkgs theme.files);
         preferences = lib.mapAttrs (_: lib.mkDefault) theme.preferences;
+        inherit (theme) policies;
       };
       environment.etc = lib.mapAttrs' (name: text: lib.nameValuePair "${cfg.theme}/${name}" {inherit text;}) theme.companions;
     })
