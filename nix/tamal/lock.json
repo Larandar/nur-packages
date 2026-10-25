@@ -1,7 +1,7 @@
 {"v":"1.5.0"
 ,"i":{
 "nixpkgs":{"sn":"nixpkgs-src","kd":[1,{"ft":1,"ur":"https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1100332.901c54c08bdc/nixexprs.tar.zst","ms":[],"ex":"tar.zst"}],"ha":{"al":0,"vl":"sha256-8fmbCL1FhpRvN6iEB9TejL5+uA5TP+rD90hLuYqi9Ss="},"fv":"https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1100332.901c54c08bdc","ps":[]}
-,"celld":{"sn":"celld-src","kd":[1,{"ft":1,"ur":"https://github.com/denoland/celld/archive/refs/tags/v0.6.3.tar.gz","ms":[],"ex":null}],"ha":{"al":0,"vl":"sha256-KL3/LMFz+7mbBZ/d6MQ3uP7qJtVAStzs9BVuEoIit+Y="},"fv":"v0.6.3","ps":[]}
+,"celld":{"sn":"celld-src","kd":[2,{"ft":1,"rp":"https://github.com/denoland/celld.git","ms":[],"rf":[1,"main"],"dt":"2026-10-21T22:40:37+02:00","sm":false,"lf":false,"lr":"8702f6d186c77698dbfb30cf29e3b1922a88f008"}],"ha":{"al":0,"vl":"sha256-KL3/LMFz+7mbBZ/d6MQ3uP7qJtVAStzs9BVuEoIit+Y="},"fv":null,"ps":[]}
 ,"celld-rusty-v8":{"sn":"celld-rusty-v8-src","kd":[0,{"ft":0,"ur":"https://github.com/denoland/rusty_v8/releases/download/v152.1.0/librusty_v8_release_x86_64-unknown-linux-gnu.a.gz","ms":[]}],"ha":{"al":0,"vl":"sha256-VrPZwer2AINF3rP3yWqtIhfpHGXYt4v+VQ9Sw6jbtQ8="},"fv":"152.1.0","ps":[]}
 ,"engram":{"sn":"engram-src","kd":[1,{"ft":1,"ur":"https://github.com/Gentleman-Programming/engram/archive/refs/tags/v3.6.0.tar.gz","ms":[],"ex":null}],"ha":{"al":0,"vl":"sha256-lVLGjn/eYUNy5S/Ct9lTWGiFso40EKrlIDmD+aUaDgg="},"fv":"v3.6.0","ps":[]}
 ,"kasetto":{"sn":"kasetto-src","kd":[1,{"ft":1,"ur":"https://github.com/pivoshenko/kasetto/archive/refs/tags/v3.11.0.tar.gz","ms":[],"ex":null}],"ha":{"al":0,"vl":"sha256-rDdXLgyy/4Bs1+bK/1k4zxjOzZXGBdzbqLm7zfqONJo="},"fv":"v3.11.0","ps":[]}

@@ -60,11 +60,9 @@ inputs {
 		}
 	}
 	celld {
-		archive fetch-time=eval {
-			url "https://github.com/denoland/celld/archive/refs/tags/{{fresh_value}}.tar.gz"
-		}
-		fresh-cmd {
-			$ nu "--no-config-file" "nix/fresh.nu" release "https://github.com/denoland/celld"
+		git fetch-time=eval {
+			repository "https://github.com/denoland/celld.git"
+			branch main
 		}
 	}
 	celld-rusty-v8 {
