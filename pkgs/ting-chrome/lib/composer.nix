@@ -435,34 +435,50 @@ in {
         ]
       );
 
-    # Dark Reader extension settings snapshot (mode = "extension"):
-    # colors follow the palette and both scheme variants; import via
-    # Dark Reader -> Settings -> Manage settings -> Import.
+    # Dark Reader extension settings snapshot (mode = "extension"), in the
+    # shape Dark Reader 4.9's validateSettings takes: the theme nested under
+    # `theme`, exempt sites as `disabledFor` hosts, and with followScheme the
+    # system automation switching the scheme (dark/light), not on/off.
+    # Import via Dark Reader -> Settings -> Manage settings -> Import.
     h = v: "#" + builtins.replaceStrings ["#"] [""] v;
+    host = url: lib.removeSuffix "/" (lib.removePrefix "http://" (lib.removePrefix "https://" url));
     darkreaderJson =
       if D.enable && D.mode == "extension"
       then
         builtins.toJSON {
           enabled = true;
-          mode = 1;
-          brightness = 100;
-          contrast = 100;
-          sepia = 0;
-          grayscale = 0;
-          darkSchemeBackgroundColor = h V.dark.colors.bg;
-          darkSchemeTextColor = h V.dark.colors.text;
-          lightSchemeBackgroundColor = h V.light.colors.bg;
-          lightSchemeTextColor = h V.light.colors.text;
-          scrollbarColor = h V.dark.colors.accent;
-          styleSystemControls = true;
-          enableForPDF = true;
-          invertListed = false;
-          siteList = D.exempt;
-          automation = {
-            enabled = true;
-            behavior = "system";
-            mode = 1;
+          enabledByDefault = true;
+          theme = {
+            mode =
+              if D.followScheme || P.dark
+              then 1
+              else 0;
+            brightness = 100;
+            contrast = 100;
+            sepia = 0;
+            grayscale = 0;
+            darkSchemeBackgroundColor = h V.dark.colors.bg;
+            darkSchemeTextColor = h V.dark.colors.text;
+            lightSchemeBackgroundColor = h V.light.colors.bg;
+            lightSchemeTextColor = h V.light.colors.text;
+            scrollbarColor = h V.dark.colors.accent;
+            styleSystemControls = true;
           };
+          enableForPDF = true;
+          enabledFor = [];
+          disabledFor = map host D.exempt;
+          automation =
+            if D.followScheme
+            then {
+              enabled = true;
+              mode = "system";
+              behavior = "Scheme";
+            }
+            else {
+              enabled = false;
+              mode = "";
+              behavior = "OnOff";
+            };
         }
         + "\n"
       else "";
