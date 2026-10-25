@@ -21,7 +21,7 @@
   cargoDeps = rustPlatform.fetchCargoVendor {
     name = "celld-${version}-vendor";
     inherit src;
-    hash = (lib.importJSON ./lock.nuon).cargoHash;
+    hash = (import ./lock.nix).cargoHash;
   };
 
   component = {

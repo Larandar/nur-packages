@@ -277,6 +277,8 @@ def affected [job: record]: nothing -> list<string> {
     # The repository tooling (`default.devShell`) runs the patched nixtamal on nixpkgs.
     if $job.name == nixpkgs { return ((lock-packages) ++ [nixtamal default]) }
     if $job.name == nixtamal { return [nixtamal default] }
+    # iets, which `check` builds with, is repository tooling too.
+    if $job.name == iets { return [default] }
     let attributes = ^nix eval --json --impure --expr "builtins.attrNames (import ./. {})" | from json
     if $job.name in $attributes { [$job.name] } else { [] }
 }
@@ -375,7 +377,7 @@ def pinned [input: string]: nothing -> record {
 }
 
 def lock-packages []: nothing -> list<string> {
-    glob $"($root)/pkgs/*/lock.nuon" | each { path dirname | path basename } | sort
+    glob $"($root)/pkgs/*/lock.nix" | each { path dirname | path basename } | sort
 }
 
 # Nushell plugins: packages whose directory carries the Cargo.lock `toolkit cargo-lock` generates.
@@ -383,53 +385,74 @@ def plugin-names []: nothing -> list<string> {
     glob $"($root)/pkgs/*/Cargo.lock" | each { path dirname | path basename } | sort
 }
 
-# Written as JSON, which is valid NUON, so Nix reads it with `lib.importJSON`.
+# A package's `lock.nix`, or an empty record for a package without derived hashes, such as nixtamal.
+def read-lock [file: path]: nothing -> record {
+    if ($file | path exists) { ^nix eval --json --file $file | from json } else { {} }
+}
+
+const lock_header = "# Derived hashes and the release tag they were computed for. Written by `toolkit check --fix`; never edit by hand."
+
+# One string literal per key, so iets's `fix-hashes` finds each hash in exactly one place and rewrites it there.
 def save-lock [file: path]: record -> nothing {
     let lock = $in
-    $"($lock | to json --indent 2)\n" | save --force $file
+    let keys = $lock | columns | sort-by {|key| if $key == tag { "" } else { $key } }
+    let body = if ($keys | is-empty) { "{}" } else {
+        ["{" ...($keys | each {|key| $"  ($key) = ($lock | get $key | to json);" }) "}"] | str join "\n"
+    }
+    $"($lock_header)\n($body)\n" | save --force $file
 }
 
 const fake_hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 
-# Recompute each package's `lock.nuon` from scratch: per key, build with a fake hash and keep the hash Nix reports.
-# A package pinned to a release archive also records the tag.
+# Build `attribute` with iets through the host's Nix daemon. With `--fix`, iets rewrites a fixed-output hash that
+# mismatches where evaluation read it, such as a `lock.nix`, and builds again. nixpkgs reads `currentSystem`, which
+# pure evaluation lacks, so the evaluation is impure, as `nix build --file` is.
+def iets-build [attribute: string, --fix]: nothing -> record {
+    let mode = if $fix { "always" } else { "never" }
+    ^iets --iets-option fix-hashes $mode build --impure --builder daemon --file $root -A $attribute | complete
+}
+
+# Recompute each package's `lock.nix` from scratch: per key, set a fake hash and let iets write the one the build
+# reports. A package pinned to a release archive also records the tag.
 @example "Recompute engram's vendorHash" { toolkit hashes engram }
 export def hashes [
-  ...packages: string # Packages under pkgs/ with a lock.nuon; all of them when omitted
+  ...packages: string # Packages under pkgs/ with a lock.nix; all of them when omitted
 ]: nothing -> nothing {
     cd $root
+    load-shell
     let packages = if ($packages | is-empty) { lock-packages } else { $packages }
     for package in $packages {
-        let file = $"pkgs/($package)/lock.nuon"
+        let file = $"pkgs/($package)/lock.nix"
         let input = pinned $package
         if $input.kd.0 == $archive_kind {
-            open $file | upsert tag $input.fv | save-lock $file
+            read-lock $file | upsert tag $input.fv | save-lock $file
         }
-        for key in (open $file | columns | where $it != tag) {
-            let current = open $file
+        for key in (read-lock $file | columns | where $it != tag) {
+            let current = read-lock $file
             $current | upsert $key $fake_hash | save-lock $file
-            let build = ^nix build --no-link --file . ...(targets $package) | complete
-            let got = $build.stderr | parse --regex 'got:\s+(?<hash>sha256-\S+)' | get --optional 0.hash
-            if $got == null {
+            let builds = targets $package | each {|target| iets-build --fix $target }
+            let got = read-lock $file | get $key
+            if $got == $fake_hash {
                 $current | save-lock $file
-                error make {msg: $"($package): no hash mismatch for ($key)\n($build.stderr | lines | last 20 | str join "\n")"}
+                let failed = $builds | where exit_code != 0 | get --optional 0.stderr | default ""
+                error make {msg: $"($package): iets fixed no hash for ($key)\n($failed | lines | last 20 | str join "\n")"}
             }
-            $current | upsert $key $got | save-lock $file
             print $"($package).($key) = ($got)"
         }
     }
 }
 
-# Build each package, then its `passthru.tests`. A build that fails on a hash recorded in `lock.nuon` gets a
-# proposed replacement, as does a release tag that no longer matches the pin; `--fix` applies them and rebuilds.
-# Any other failure, or a hash recorded nowhere or in several keys, is reported, not fixed.
+# Build each package with iets, then its `passthru.tests`. A build that fails on a hash recorded in `lock.nix` gets
+# a proposed replacement, as does a release tag that no longer matches the pin; with `--fix`, the tag is rewritten
+# and iets fixes the hashes in place as it builds. Any other failure is reported, not fixed.
 @example "Check engram and propose fixes" { toolkit check engram }
 @example "Check and repair every package" { toolkit check --fix }
 export def check [
-  --fix # Apply the proposed lock.nuon changes and rebuild
-  ...packages: string # Packages under pkgs/ with a lock.nuon; all of them when omitted
+  --fix # Apply the proposed lock.nix changes and rebuild
+  ...packages: string # Packages under pkgs/ with a lock.nix; all of them when omitted
 ]: nothing -> nothing {
     cd $root
+    load-shell
     let packages = if ($packages | is-empty) { lock-packages } else { $packages }
     let results = $packages | each {|package| check-package $package $fix }
     print ($results | table --expand)
@@ -440,56 +463,49 @@ export def check [
 }
 
 def check-package [package: string, fix: bool]: nothing -> record {
-    let file = $"pkgs/($package)/lock.nuon"
-    mut changes = []
-    for _ in 1..5 {
-        let proposed = (lock-proposals $package $file)
-        if ($proposed | is-empty) {
-            let tests = targets $package | each {|target| test-attributes $target } | flatten
-            let failed = $tests | where {|test| (^nix build --no-link --file . $test | complete).exit_code != 0 }
-            return (if ($failed | is-empty) {
-                {package: $package, status: (if ($changes | is-empty) { "ok" } else { "fixed" }), changes: $changes, detail: $"($tests | length) tests"}
-            } else {
-                {package: $package, status: failed, changes: $changes, detail: $"tests failed: ($failed | str join ', ')"}
-            })
-        }
-        let failure = $proposed | where key == null
-        if ($failure | is-not-empty) {
-            return {package: $package, status: failed, changes: $changes, detail: $failure.0.detail}
-        }
-        $changes = $changes ++ ($proposed | each {|change| $"($change.key): ($change.from) -> ($change.to)" })
-        if not $fix {
-            return {package: $package, status: proposed, changes: $changes, detail: "run with --fix to apply"}
-        }
-        $proposed | reduce --fold (open $file) {|change, lock| $lock | upsert $change.key $change.to } | save-lock $file
-    }
-    {package: $package, status: failed, changes: $changes, detail: "still failing after 5 fixes"}
-}
-
-# What `lock.nuon` should change for `package` to build: an empty list when it builds, rows with a null key
-# when it fails for a reason `lock.nuon` cannot fix.
-def lock-proposals [package: string, file: path]: nothing -> list<record> {
-    # A package without derived hashes, such as nixtamal, has no lock.nuon.
-    let entry = if ($file | path exists) { open $file } else { {} }
+    let file = $"pkgs/($package)/lock.nix"
+    let before = read-lock $file
     # An attribute that is not itself an input, such as `default`, has no tag to check.
     let input = open $"($root)/nix/tamal/lock.json" | get i | get --optional $package
     if $input != null and $input.kd.0 == $archive_kind {
-        let recorded = $entry.tag? | default "none"
-        if $recorded != $input.fv { return [{key: tag, from: $recorded, to: $input.fv}] }
-    }
-    let build = ^nix build --no-link --file . ...(targets $package) | complete
-    if $build.exit_code == 0 { return [] }
-    let mismatches = $build.stderr | parse --regex '(?s)specified:\s+(?<from>sha256-\S+)\s+got:\s+(?<to>sha256-\S+)'
-    if ($mismatches | is-empty) {
-        return [{key: null, detail: ($build.stderr | lines | last 15 | str join "\n")}]
-    }
-    $mismatches | each {|mismatch|
-        let keys = $entry | transpose key value | where value == $mismatch.from | get key
-        if ($keys | length) == 1 {
-            {key: $keys.0, from: $mismatch.from, to: $mismatch.to}
-        } else {
-            {key: null, detail: $"($mismatch.from) is recorded in ($keys | length) lock.nuon keys, expected one"}
+        let recorded = $before.tag? | default "none"
+        if $recorded != $input.fv {
+            if not $fix {
+                return {package: $package, status: proposed, changes: [$"tag: ($recorded) -> ($input.fv)"], detail: "run with --fix to apply"}
+            }
+            $before | upsert tag $input.fv | save-lock $file
         }
+    }
+    let failed = targets $package | each {|target| iets-build --fix=$fix $target } | where exit_code != 0
+    let after = read-lock $file
+    let changes = $after | transpose key to | where {|change| ($before | get --optional $change.key) != $change.to } | each {|change|
+        $"($change.key): ($before | get --optional $change.key | default none) -> ($change.to)"
+    }
+    if ($failed | is-not-empty) {
+        let stderr = $failed.0.stderr
+        if not $fix {
+            let proposed = hash-proposals $before $stderr
+            if ($proposed | is-not-empty) and ($proposed | all {|change| $change.key != null }) {
+                let lines = $proposed | each {|change| $"($change.key): ($change.from) -> ($change.to)" }
+                return {package: $package, status: proposed, changes: $lines, detail: "run with --fix to apply"}
+            }
+        }
+        return {package: $package, status: failed, changes: $changes, detail: ($stderr | lines | last 15 | str join "\n")}
+    }
+    let tests = targets $package | each {|target| test-attributes $target } | flatten
+    let broken = $tests | where {|test| (iets-build $test).exit_code != 0 }
+    if ($broken | is-not-empty) {
+        return {package: $package, status: failed, changes: $changes, detail: $"tests failed: ($broken | str join ', ')"}
+    }
+    {package: $package, status: (if ($changes | is-empty) { "ok" } else { "fixed" }), changes: $changes, detail: $"($tests | length) tests"}
+}
+
+# The `lock.nix` change each hash mismatch in a build's stderr calls for; a null key when the old hash is recorded
+# in no key or in several.
+def hash-proposals [lock: record, stderr: string]: nothing -> list<record> {
+    $stderr | parse --regex '(?s)specified:\s+(?<from>sha256-\S+)\s+got:\s+(?<to>sha256-\S+)' | each {|mismatch|
+        let keys = $lock | transpose key value | where value == $mismatch.from | get key
+        if ($keys | length) == 1 { {key: $keys.0, from: $mismatch.from, to: $mismatch.to} } else { {key: null} }
     }
 }
 

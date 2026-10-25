@@ -6,6 +6,7 @@
     homeManager = inputs.home-manager;
     nixDarwin = inputs.nix-darwin;
   };
+  iets = (import "${inputs.iets}/nix/flake-compat.nix" {src = inputs.iets;}).defaultNix.packages.${pkgs.stdenv.hostPlatform.system}.default;
   nixtamal = pkgs.callPackage ./pkgs/nixtamal {
     inherit (pkgs) nixtamal;
     src = inputs.nixtamal;
@@ -27,6 +28,8 @@ in {
       pkgs.git
       # Syntax-aware conflict resolution: `jj resolve --tool mergiraf`.
       pkgs.mergiraf
+      # Fast evaluation and builds for `toolkit check`; numtide packages it, through its flake.
+      iets
     ];
   };
 

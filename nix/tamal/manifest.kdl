@@ -37,6 +37,14 @@ inputs {
 			$ nu "--no-config-file" "nix/fresh.nu" release "https://github.com/pivoshenko/kasetto"
 		}
 	}
+	iets {
+		archive fetch-time=eval {
+			url "https://github.com/numtide/iets/archive/refs/tags/{{fresh_value}}.tar.gz"
+		}
+		fresh-cmd {
+			$ nu "--no-config-file" "nix/fresh.nu" release "https://github.com/numtide/iets"
+		}
+	}
 	phrog {
 		archive fetch-time=eval {
 			url "https://github.com/samcday/phrog/archive/refs/tags/{{fresh_value}}.tar.gz"

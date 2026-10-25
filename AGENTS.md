@@ -22,6 +22,7 @@ revision or hash of an external source: nixpkgs, a package `src`, a patch.
 | --- | --- | --- |
 | `nixpkgs` | `nixpkgs-unstable` channel release | `https://channels.nixos.org/nixpkgs-unstable` redirect |
 | `nixtamal` | darcs `next` head | `https://darcs.toastal.in.th/nixtamal/next/_darcs/weak_hash` |
+| `iets` | newest `X.Y.Z` release tag | `nix/fresh.nu release https://github.com/numtide/iets` |
 
 An input named `<pkg>-*` is a companion of `<pkg>`, such as `celld-rusty-v8`:
 its `fresh-cmd` reads the pinned package source (`nix/fresh.nu locked-dep`), so
@@ -67,17 +68,23 @@ requests are separate, authorized steps.
 ## Derived hashes
 
 Hashes a build derives from its source (`vendorHash`, `cargoHash`) live in
-`pkgs/<pkg>/lock.nuon`, with the release `tag` they were computed for;
+`pkgs/<pkg>/lock.nix`, with the release `tag` they were computed for;
 evaluating `<pkg>` fails while that tag differs from a release pin. Never edit
 them by hand: `toolkit check <pkg>` builds the package and its
-`passthru.tests` and proposes the `lock.nuon` change a failing hash or stale
-tag needs; `--fix` applies it and rebuilds. `toolkit update` runs `check
---fix` for every package whose pins moved, and `toolkit hashes <pkg>`
-recomputes every hash from scratch. A package can be a set of binaries, one
-member per binary crate (`snix.store`, `snix.nar-bridge`); `check` builds each
-derivation member, and the members share one vendored dependency set and its
-`cargoHash`. `lock.nuon` is written as JSON, valid NUON
-that Nix reads with `lib.importJSON`.
+`passthru.tests` with [iets](https://github.com/numtide/iets) and proposes the
+`lock.nix` change a failing hash or stale tag needs; `--fix` rewrites the tag
+and lets iets's `fix-hashes` rewrite each mismatching hash in place as it
+builds. `toolkit update` runs `check --fix` for every package whose pins moved,
+and `toolkit hashes <pkg>` recomputes every hash from scratch. A package can be
+a set of binaries, one member per binary crate (`snix.store`,
+`snix.nar-bridge`); `check` builds each derivation member, and the members
+share one vendored dependency set and its `cargoHash`. `lock.nix` holds one
+string literal per key and no hash twice, so iets finds each hash in exactly
+one place.
+
+iets comes from numtide's flake, through its `flake-compat`, pinned as the
+`iets` input and put on PATH by `default.devShell`. It evaluates impurely, as
+`nix build --file` does, since nixpkgs reads `currentSystem`.
 
 ## Nushell plugins
 
@@ -136,9 +143,9 @@ password, for the pull request records (`nix/tangled.nu`). Without
 overlay use --prefix toolkit.nu
 toolkit update           # plan + verify the update jobs, one landing each
 toolkit update nixpkgs   # refresh one input
-toolkit check engram     # build and test, propose lock.nuon fixes
+toolkit check engram     # build and test, propose lock.nix fixes
 toolkit check --fix      # the same for every package, applying the fixes
-toolkit hashes engram    # recompute one package's lock.nuon from scratch
+toolkit hashes engram    # recompute one package's lock.nix from scratch
 toolkit jobs             # what the pins call for, without building
 toolkit plan             # prepare one candidate per job on ci/<kind>/<name>
 toolkit verify           # build, repair, then advance or land each candidate

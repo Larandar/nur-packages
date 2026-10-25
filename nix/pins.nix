@@ -15,16 +15,16 @@ in {
 
   # Package `name` from input `name`. On `main` the input is a release archive whose fresh value is the
   # tag; a `<name>/nightly` branch re-points it at upstream's branch, versioned from the release
-  # `lock.nuon` records. `extra` adds arguments beyond `src` and `version`.
+  # `lock.nix` records. `extra` adds arguments beyond `src` and `version`.
   # The check sits in `src`, which only building forces: listing the attributes never fails.
   package = name: path: extra: let
-    lockFile = path + "/lock.nuon";
-    recorded = (lib.importJSON lockFile).tag or null;
+    lockFile = path + "/lock.nix";
+    recorded = (import lockFile).tag or null;
     fresh =
       !isArchive name
       || !builtins.pathExists lockFile
       || lib.assertMsg (recorded == (locked name).fv)
-      "${name}: lock.nuon holds hashes for ${
+      "${name}: lock.nix holds hashes for ${
         if recorded == null
         then "no tag"
         else recorded
