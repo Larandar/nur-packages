@@ -43,6 +43,7 @@ in {
   snix = pins.package "snix" ./pkgs/snix {};
   inherit waterfox;
   waterfox-unwrapped = waterfox.unwrapped;
+  waterfox-remote = pkgs.callPackage ./pkgs/waterfox/remote {};
   ting-chrome = pkgs.callPackage ./pkgs/ting-chrome/package.nix {};
   searchwala-calf = pins.package "searchwala-calf" ./pkgs/searchwala-calf {nixDarwin = inputs.nix-darwin;};
   vproxy = pins.package "vproxy" ./pkgs/vproxy {};
