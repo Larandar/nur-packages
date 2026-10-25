@@ -1,0 +1,62 @@
+[package]
+name = "searchwala-calf"
+version = "0.1.0"
+edition = "2021"
+license = "MPL-2.0"
+description = """
+A lite SearchWala, the estate's search door. Wraps ONLY the SearchWala search pipeline
+(`searchwala::search`, `searchwala::models`) — deliberately not its server,
+UI, LLM or storage surface, which is why this is a crate and not the
+upstream binary. The API is ours: one JSON route over a unix socket, and
+the seams for the estate's own extensions (distributed proxying, more
+providers) land here rather than in upstream.
+"""
+
+[dependencies]
+# THE SEARCH PIPELINE, AND NOTHING ELSE. Path dependency on nur-packages'
+# `searchwala-calf` pin, SearchWala's release (assembled beside this crate at
+# build time), so the pin —
+# not a registry — decides what the estate's search runs. What is imported:
+# `search::execute_search_full`, `models::*`, `cache::{TempDb, HistoryDb}`
+# (passed as None — no state). Everything else upstream carries is inert.
+searchwala = { path = "../vendor-searchwala" }
+# SOCKS FOR THE PROXY POOL. SearchWala's stealth client is wreq, which it
+# depends on without `socks`; wreq then sends an HTTP CONNECT to every
+# `socks5h://` proxy in PROXY_POOL, which a SOCKS server resets, and every
+# engine comes back empty. Naming wreq here with the feature unifies it into
+# SearchWala's.
+wreq = { version = "0.16", default-features = false, features = ["socks"] }
+
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio"] }
+# PAGE PARSING for `/extract`: the same Readability SearchWala links, htmd
+# for HTML to Markdown, scraper for fragments' text.
+dom_smoothie = "0.18"
+htmd = "0.5"
+scraper = "0.27"
+tokio = { version = "1", features = ["full"] }
+# The `/search` NDJSON stream: an mpsc receiver as the response body.
+tokio-stream = "0.1"
+hyper = { version = "1", features = ["http1", "http2", "server"] }
+hyper-util = { version = "0.1", features = ["tokio", "service", "http1", "http2"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+clap = { version = "4", features = ["derive", "env"] }
+# Dev convenience only: a `.env` beside a local `cargo run`. In deployment the
+# environment (LLM keys included) is delivered by secretspec, not by dotenv.
+dotenvy = "0.15"
+tower = { version = "0.5", features = ["util"] }
+
+# OBSERVABILITY. The `tracing` facade plus an optional OTLP exporter: when
+# `OTEL_EXPORTER_OTLP_ENDPOINT` is set, spans ship to the estate's collector
+# (tamiel's stack); unset, logs stay local. Search spans carry the query's
+# mode, engine stats and timings — never the query text itself.
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-opentelemetry = "0.31"
+opentelemetry = "0.30"
+opentelemetry_sdk = { version = "0.30", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.30", features = ["http-json", "grpc-tonic"] }
+
+[profile.release]
+strip = true

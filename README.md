@@ -52,6 +52,13 @@ start. `homeModules.waterfox` installs no package there and keeps the profiles
 in `~/Library/Application Support/Waterfox`, its policies in the user's
 defaults.
 
+`searchwala-calf` is a lite [SearchWala](pkgs/searchwala-calf/README.md):
+its search pipeline and page parsing behind a unix socket, `.page` its
+start page. `nixosModules.searchwala-calf` runs it as a hardened systemd
+unit, `darwinModules.searchwala-calf` as a launchd user agent; its engines
+reach the web through `PROXY_POOL`, SOCKS or HTTP proxies such as
+`vproxy`, which draws each connection's source address from a CIDR.
+
 Without flakes:
 
 ```sh

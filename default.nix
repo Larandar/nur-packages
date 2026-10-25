@@ -44,6 +44,8 @@ in {
   inherit waterfox;
   waterfox-unwrapped = waterfox.unwrapped;
   ting-chrome = pkgs.callPackage ./pkgs/ting-chrome/package.nix {};
+  searchwala-calf = pins.package "searchwala-calf" ./pkgs/searchwala-calf {nixDarwin = inputs.nix-darwin;};
+  vproxy = pins.package "vproxy" ./pkgs/vproxy {};
   nu-plugin-ws = pins.package "nu-plugin-ws" ./pkgs/nu-plugin-ws {};
   nu-plugin-mongo = pins.package "nu-plugin-mongo" ./pkgs/nu-plugin-mongo {};
   celld = pins.package "celld" ./pkgs/celld {

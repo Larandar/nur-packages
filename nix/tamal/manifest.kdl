@@ -103,6 +103,26 @@ inputs {
 			$ nu "--no-config-file" "nix/fresh.nu" release "https://github.com/BrowserWorks/waterfox"
 		}
 	}
+	// SearchWala's pipeline, which searchwala-calf wraps: its releases carry a build stamp.
+	searchwala-calf {
+		archive fetch-time=eval {
+			url "https://github.com/SandeepAi369/SearchWala/archive/refs/tags/{{fresh_value}}.tar.gz"
+		}
+		fresh-cmd {
+			$ nu "--no-config-file" "nix/fresh.nu" release "--stamped" "https://github.com/SandeepAi369/SearchWala"
+		}
+	}
+	// The published crate, which carries the Cargo.lock the repository's tags lack; versioned without the tag's `v`.
+	vproxy {
+		archive fetch-time=eval {
+			url "https://static.crates.io/crates/vproxy/vproxy-{{fresh_value}}.crate"
+			extension tar.gz
+		}
+		fresh-cmd {
+			$ nu "--no-config-file" "nix/fresh.nu" release "https://github.com/0x676e67/vproxy"
+			| sed "s/^v//"
+		}
+	}
 	// Evaluates homeModules in package tests; nothing builds from it.
 	home-manager {
 		git fetch-time=eval {
