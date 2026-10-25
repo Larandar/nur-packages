@@ -103,6 +103,14 @@ holds the latest commit that compiles for the current Nushell. Their version is
 that version, so it ends on the last one that did. `toolkit update` advances
 them, keeping `main`'s pin when upstream's head does not build.
 
+## Own crates
+
+A package with a crate of its own over its pin keeps it in `pkgs/<pkg>/crate/`,
+assembled at `<pkg>/` in its build tree (`.src`) beside the pinned source, such
+as `searchwala-calf` over SearchWala. Its `Cargo.lock` is generated against the
+pinned release: `toolkit cargo-lock <pkg>` rewrites it, and `toolkit verify`
+does so whenever the pin moves, as for the Nushell plugins.
+
 ## Package patches
 
 Optional patches live in `pkgs/<package>/patches/` and are opt-in through the

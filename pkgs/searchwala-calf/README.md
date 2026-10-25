@@ -21,8 +21,9 @@ query text never.
 SearchWala is a path dependency on the `searchwala-calf` pin, SearchWala's
 newest stamped release (`vX.Y.Z-YYYYMMDD-HHMM`), assembled beside the crate
 (`crate/`) at build time. The crate's `Cargo.lock` is written against that
-release: when the pin moves, regenerate it (`cargo update --workspace` in
-the assembled tree, `.src`) before the build can pass. As a service:
+release: `toolkit cargo-lock searchwala-calf` regenerates it in the
+assembled tree (`.src`), and `toolkit verify` does so whenever the pin
+moves. As a service:
 `nixosModules.searchwala-calf` (hardened systemd unit, secrets through
 `environmentFile`) and `darwinModules.searchwala-calf` (launchd user agent,
 socket under `/tmp`).

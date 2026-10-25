@@ -236,7 +236,7 @@ def prepare-update [name: string]: nothing -> bool {
     true
 }
 
-# Build, test and repair each candidate (`check --fix`, Nushell plugin locks), folding repairs into it. A green nightly
+# Build, test and repair each candidate (`check --fix`, generated Cargo locks), folding repairs into it. A green nightly
 # candidate advances `<package>/nightly`; a green release or update lands on `main` as one commit and is tagged.
 # With `--publish`, push what moved, keep the pull requests current, and settle the landed ones as merged.
 @example "Verify every local candidate" { toolkit verify }
@@ -255,8 +255,8 @@ export def verify [
         let job = $candidate | parse 'ci/{kind}/{name}' | first
         ^jj new $candidate
         let packages = affected $job
-        let plugins = $packages | where $it in (plugin-names)
-        if ($plugins | is-not-empty) { cargo-lock ...$plugins }
+        let locked = $packages | where $it in (locked-crates)
+        if ($locked | is-not-empty) { cargo-lock ...$locked }
         if ($packages | is-not-empty) { check --fix ...$packages }
         ^jj squash
         if $job.kind == nightly {
@@ -383,6 +383,22 @@ def lock-packages []: nothing -> list<string> {
 # Nushell plugins: packages whose directory carries the Cargo.lock `toolkit cargo-lock` generates.
 def plugin-names []: nothing -> list<string> {
     glob $"($root)/pkgs/*/Cargo.lock" | each { path dirname | path basename } | sort
+}
+
+# Packages whose Cargo.lock `toolkit cargo-lock` generates: the Nushell plugins, and packages with a crate of their own
+# in `crate/`, over their pin (searchwala-calf).
+def locked-crates []: nothing -> list<string> {
+    plugin-names | append (glob $"($root)/pkgs/*/crate/Cargo.lock" | each { path dirname | path dirname | path basename }) | sort
+}
+
+# Where `package`'s generated lock lives, and where its crate sits in its build tree (`.src`): a plugin's lock beside
+# it, its crate at the tree's root; an own crate's lock in `crate/`, the crate at `<package>/` in the tree.
+def lock-layout [package: string]: nothing -> record {
+    if ($"($root)/pkgs/($package)/crate/Cargo.lock" | path exists) {
+        {lock: $"pkgs/($package)/crate/Cargo.lock", crate: $package}
+    } else {
+        {lock: $"pkgs/($package)/Cargo.lock", crate: "."}
+    }
 }
 
 # A package's `lock.nix`, or an empty record for a package without derived hashes, such as nixtamal.
@@ -693,23 +709,27 @@ def release-message [package: string, repository: string, tag: string, nightly: 
     | str join "\n"
 }
 
-# Regenerate each Nushell plugin's `Cargo.lock` for its pinned source and the Nushell its build targets.
+# Regenerate each generated `Cargo.lock` for its package's pinned source: a Nushell plugin's for the Nushell its build
+# targets, an own crate's for the release it is assembled over.
 @example "Regenerate nu_plugin_ws's lock" { toolkit cargo-lock nu-plugin-ws }
+@example "Regenerate searchwala-calf's lock for its SearchWala" { toolkit cargo-lock searchwala-calf }
 export def cargo-lock [
-  ...plugins: string # Plugin packages under pkgs/; all of them when omitted
+  ...packages: string # Packages under pkgs/ with a generated lock; all of them when omitted
 ]: nothing -> nothing {
     cd $root
-    let plugins = if ($plugins | is-empty) { plugin-names } else { $plugins }
-    for plugin in $plugins {
-        let source = ^nix build --no-link --print-out-paths --file . $"($plugin).src" | str trim
+    let packages = if ($packages | is-empty) { locked-crates } else { $packages }
+    for package in $packages {
+        let layout = lock-layout $package
+        let source = ^nix build --no-link --print-out-paths --file . $"($package).src" | str trim
         let work = mktemp --directory --tmpdir cargo-lock.XXXXXX
         try {
             ^cp --recursive --no-preserve=mode $"($source)/." $work
-            ^nix shell --impure --expr "(import (import ./nix/tamal {}).nixpkgs {}).cargo" --command cargo update --workspace --manifest-path ($work | path join Cargo.toml)
-            cp --force ($work | path join Cargo.lock) $"pkgs/($plugin)/Cargo.lock"
+            let crate = $work | path join $layout.crate
+            ^nix shell --impure --expr "(import (import ./nix/tamal {}).nixpkgs {}).cargo" --command cargo update --workspace --manifest-path ($crate | path join Cargo.toml)
+            cp --force ($crate | path join Cargo.lock) $layout.lock
         } catch {|err|
             rm --recursive --force $work
-            error make {msg: $"($plugin): ($err.msg)"}
+            error make {msg: $"($package): ($err.msg)"}
         }
         rm --recursive --force $work
     }
