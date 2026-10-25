@@ -16,6 +16,8 @@ dependencies:
 environment:
   NIX_REMOTE: "daemon"
   NIX_CONFIG: "experimental-features = nix-command flakes"
+  # iets's cache for code of unknown origin, people's pull requests, kept apart from the one the publishing workflows trust.
+  IETS_CACHE_DIR: "/var/cache/iets/unknown"
 
 steps:
   - name: "Check every package"

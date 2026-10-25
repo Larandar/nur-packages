@@ -132,6 +132,12 @@ Spindle runs `.tangled/workflows/`, building through the host's Nix daemon
   opens a new pull request.
 - `check.yml`: `toolkit check` on pull requests from people.
 
+iets keeps its cache on the host through `IETS_CACHE_DIR`: `plan.yml` and
+`verify.yml` share `/var/cache/iets/trusted`, and `check.yml` uses
+`/var/cache/iets/unknown`, for code of unknown origin. A cache entry answers
+an evaluation, so the workflows that hold the publishing secrets never read
+one a pull request wrote.
+
 Publishing needs two spindle secrets: `NUR_SSH_KEY`, the private half of a key
 registered on the account, for pushes; and `NUR_APP_PASSWORD`, an ATProto app
 password, for the pull request records (`nix/tangled.nu`). Without

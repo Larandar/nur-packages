@@ -23,6 +23,8 @@ environment:
   NUR_REPO_DID: "did:plc:63zy6oaqgtelfyyhby3f74oo"
   NUR_PUSH_URL: "git@knot.et0.pw:did:plc:63zy6oaqgtelfyyhby3f74oo"
   NUR_CI_EMAIL: "git@lar.ad"
+  # iets's cache on the host, shared by plan and verify, which run only code CI pushed; never by check.
+  IETS_CACHE_DIR: "/var/cache/iets/trusted"
 
 steps:
   - name: "Verify the candidate"
