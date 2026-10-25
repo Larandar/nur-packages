@@ -16,11 +16,12 @@
     -----END CERTIFICATE-----
   '';
 
-  nixos =
+  nixosWith = extra:
     (import "${path}/nixos/lib/eval-config.nix" {
       inherit (stdenv.hostPlatform) system;
       modules = [
         ../../modules/waterfox/nixos.nix
+        extra
         {
           system.stateVersion = "26.05";
           programs.waterfox = {
@@ -39,11 +40,17 @@
       ];
     }).config;
 
-  homeOn = pkgs: homeDirectory:
+  nixos = nixosWith {};
+  nixosTing = nixosWith {programs.waterfox.theme = "ting";};
+
+  homeWith = extra: pkgs: homeDirectory:
     (import "${homeManager}/modules" {
       inherit pkgs;
       configuration = {
-        imports = [../../modules/waterfox/home.nix];
+        imports = [
+          ../../modules/waterfox/home.nix
+          extra
+        ];
         home = {
           username = "waterfox";
           inherit homeDirectory;
@@ -57,7 +64,21 @@
       };
     }).config;
 
+  homeOn = homeWith {};
   home = homeOn pkgs "/home/waterfox";
+  # The top level picks Ting; the `plain` profile keeps Waterfox's own look.
+  homeTing =
+    homeWith {
+      programs.waterfox = {
+        theme = "ting";
+        themes.ting.paletteName = "midnight";
+        profiles.plain = {
+          id = 1;
+          theme = null;
+        };
+      };
+    }
+    pkgs "/home/waterfox";
 
   darwinPkgs = import path {system = "aarch64-darwin";};
 
@@ -114,6 +135,33 @@ in
       } ''
         grep -qF '"DisableTelemetry":true' ${package}/lib/waterfox/distribution/policies.json
         grep -qF 'user_pref("browser.startup.page", 3);' ${home.home.file.".waterfox/default/user.js".source}
+      '';
+    nixos-module-ting = let
+      package = nixosTing.programs.waterfox.package;
+    in
+      checked "waterfox-nixos-module-ting" {
+        "Sidebery's companion in /etc" = nixosTing.environment.etc ? "ting/sidebery.css";
+        "no chrome without a theme" = nixos.programs.waterfox.chrome == null;
+      } ''
+        chrome=$(sed -n 's|.*newURI("file://\(/nix/store/[^/]*\)/".*|\1|p' ${package}/lib/waterfox/waterfox.cfg)
+        test -s "$chrome/userChrome.css"
+        grep -qF '@import url("palette.css")' "$chrome/userChrome.css"
+        test -s "$chrome/palette.css"
+        grep -qF 'lockPref("toolkit.legacyUserProfileCustomizations.stylesheets", true);' ${package}/lib/waterfox/waterfox.cfg
+      '';
+    home-module-ting = let
+      file = homeTing.home.file;
+    in
+      checked "waterfox-home-module-ting" {
+        "the default profile's chrome" = file ? ".waterfox/default/chrome/userChrome.css" && file ? ".waterfox/default/chrome/palette.css";
+        "the plain profile has no theme preferences" = !(homeTing.programs.waterfox.profiles.plain.settings ? "toolkit.legacyUserProfileCustomizations.stylesheets");
+        "the plain profile has no chrome" = !(file ? ".waterfox/plain/chrome/userChrome.css" || file ? ".waterfox/plain/chrome/palette.css");
+        "Sidebery's companion per profile" = homeTing.xdg.configFile ? "ting/default/sidebery.css";
+        "no chrome without a theme" = !(home.home.file ? ".waterfox/default/chrome/userChrome.css");
+      } ''
+        grep -qF '@import url("palette.css")' ${file.".waterfox/default/chrome/userChrome.css".source}
+        grep -qF -- '--vt-accent-rgb: 34 211 238;' ${file.".waterfox/default/chrome/palette.css".source}
+        grep -qF 'user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);' ${file.".waterfox/default/user.js".source}
       '';
     home-module-darwin = let
       darwinHome = homeOn darwinPkgs "/Users/waterfox";

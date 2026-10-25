@@ -37,6 +37,13 @@ packages also take nixpkgs' `wrapFirefox` arguments (`extraPolicies`,
 `extraPrefs`, `nativeMessagingHosts`, ...), so NixOS's `programs.firefox` can
 drive them.
 
+Both modules offer a chrome theme, off by default: `theme = "ting"` picks
+[Ting](pkgs/ting-chrome/README.md), the glass chrome, configured by
+`themes.ting` (its palette follows stylix when the host has it). NixOS wears it
+in the install, for every profile; Home Manager per profile, each taking the top
+level's unless `profiles.<name>.theme` says otherwise. `ting-chrome` is the
+composed theme, and `lib.ting` its composer and palettes.
+
 On macOS, Waterfox comes from Homebrew and its app stays as the cask installs
 it: `darwinModules.waterfox` adds the `waterfox` cask and writes `policies`,
 `preferences` (as the `Preferences` policy), `extensions`, `certificates` and

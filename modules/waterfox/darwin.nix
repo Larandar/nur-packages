@@ -1,6 +1,7 @@
 # programs.waterfox for nix-darwin: Homebrew's Waterfox, left as the cask installs it, with every setting given as
 # policies in the app's system-wide defaults (/Library/Preferences/<defaultsId>.plist), which Waterfox reads at start.
-# Settings that need the Linux wrapper (chrome, newTabCommand, loginStorage, ...) do not exist here. `homebrew.enable`
+# Settings that need the Linux wrapper (chrome, newTabCommand, loginStorage, ...) do not exist here; `theme` exists so a
+# shared configuration evaluates, and must stay null. `homebrew.enable`
 # stays the host's choice: without it, nix-darwin installs no cask.
 {
   config,
@@ -9,10 +10,12 @@
   ...
 }: let
   common = import ./common.nix {inherit lib;};
+  themes = import ./themes.nix {inherit lib;};
   cfg = config.programs.waterfox;
 in {
   options.programs.waterfox =
     common.settingsOptions
+    // themes.options false
     // {
       enable = lib.mkEnableOption "Waterfox, installed by Homebrew";
       cask = lib.mkOption {
@@ -28,6 +31,12 @@ in {
     };
 
   config = lib.mkIf cfg.enable {
+    assertions = [
+      {
+        assertion = cfg.theme == null;
+        message = "programs.waterfox.theme: Homebrew's Waterfox takes no chrome; set the theme in a Home Manager profile instead.";
+      }
+    ];
     homebrew.casks = [cfg.cask];
     # nix-darwin writes these keys and never deletes them: a policy removed here stays until the plist is cleared.
     system.defaults.CustomSystemPreferences."/Library/Preferences/${cfg.defaultsId}" =
