@@ -43,6 +43,7 @@ in {
   snix = pins.package "snix" ./pkgs/snix {};
   inherit waterfox;
   waterfox-unwrapped = waterfox.unwrapped;
+  ting-chrome = pkgs.callPackage ./pkgs/ting-chrome/package.nix {};
   nu-plugin-ws = pins.package "nu-plugin-ws" ./pkgs/nu-plugin-ws {};
   nu-plugin-mongo = pins.package "nu-plugin-mongo" ./pkgs/nu-plugin-mongo {};
   celld = pins.package "celld" ./pkgs/celld {
