@@ -8,8 +8,6 @@
 #     paletteCss    : string   chrome/palette.css     (the runtime contract)
 #     userContent   : string   chrome/userContent.css (inlined colors:
 #                              about: pages + DarkReader web theming)
-#     darkreaderJson: string   Dark Reader extension settings snapshot
-#                              (empty unless darkreader.mode = "extension")
 #     sidebery.css  : string   paste into Sidebery Styles editor
 #     sidebery.json : string   importable Sidebery settings snapshot
 #     meta          : { name, version, dark }
@@ -107,8 +105,9 @@
     {
       enable = true;
       # Web pages keep their own colors unless asked: the CSS engines are
-      # heuristics, and half-themed pages read worse than stock ones.
-      mode = "extension"; # extension | tint | invert
+      # heuristics, and half-themed pages read worse than stock ones. The
+      # Dark Reader extension, if any, is configured by hand.
+      mode = null; # null | tint | invert
       exempt = []; # url-prefixes left untouched
       aboutPages = true; # keep the about:/newtab re-skin
       followScheme = true; # emit prefers-color-scheme light/dark variants
@@ -204,7 +203,10 @@ in {
     P = normalizePalette palette;
     G = normalizeGeometry geometry;
     M = normalizeMinimalism minimalism;
-    D = normalizeDarkreader darkreader;
+    D =
+      lib.throwIf ((normalizeDarkreader darkreader).mode == "extension")
+      "ting: darkreader.mode \"extension\" is gone; configure the Dark Reader extension by hand, or pick \"tint\" or \"invert\""
+      (normalizeDarkreader darkreader);
     WC = windowControls;
 
     # The active palette always fills its own polarity slot; the opposite
@@ -306,7 +308,7 @@ in {
 
     # --- DarkReader: web content theming (inlined colors, no @import) ----
     drOut =
-      if D.enable && D.mode != "extension"
+      if D.enable && D.mode != null
       then (import ../modules/chrome/darkreader.nix) ctx
       else {
         dark = "";
@@ -435,54 +437,6 @@ in {
         ]
       );
 
-    # Dark Reader extension settings snapshot (mode = "extension"), in the
-    # shape Dark Reader 4.9's validateSettings takes: the theme nested under
-    # `theme`, exempt sites as `disabledFor` hosts, and with followScheme the
-    # system automation switching the scheme (dark/light), not on/off.
-    # Import via Dark Reader -> Settings -> Manage settings -> Import.
-    h = v: "#" + builtins.replaceStrings ["#"] [""] v;
-    host = url: lib.removeSuffix "/" (lib.removePrefix "http://" (lib.removePrefix "https://" url));
-    darkreaderJson =
-      if D.enable && D.mode == "extension"
-      then
-        builtins.toJSON {
-          enabled = true;
-          enabledByDefault = true;
-          theme = {
-            mode =
-              if D.followScheme || P.dark
-              then 1
-              else 0;
-            brightness = 100;
-            contrast = 100;
-            sepia = 0;
-            grayscale = 0;
-            darkSchemeBackgroundColor = h V.dark.colors.bg;
-            darkSchemeTextColor = h V.dark.colors.text;
-            lightSchemeBackgroundColor = h V.light.colors.bg;
-            lightSchemeTextColor = h V.light.colors.text;
-            scrollbarColor = h V.dark.colors.accent;
-            styleSystemControls = true;
-          };
-          enableForPDF = true;
-          enabledFor = [];
-          disabledFor = map host D.exempt;
-          automation =
-            if D.followScheme
-            then {
-              enabled = true;
-              mode = "system";
-              behavior = "Scheme";
-            }
-            else {
-              enabled = false;
-              mode = "";
-              behavior = "OnOff";
-            };
-        }
-        + "\n"
-      else "";
-
     meta = {
       name = P.name;
       version = P.version;
@@ -493,7 +447,6 @@ in {
       userChrome
       paletteCss
       userContentCss
-      darkreaderJson
       meta
       ;
     sidebery = sideberyOut;

@@ -10,29 +10,23 @@
 }: let
   tingLib = import ./lib {inherit lib;};
   out = tingLib.composer.compose {};
-  drPaths = lib.optionals (out.darkreaderJson != "") [
-    (writeTextDir "share/ting/darkreader/darkreader.json" out.darkreaderJson)
-  ];
 in
   symlinkJoin {
     name = "ting-${out.meta.version}";
-    paths =
-      [
-        (writeTextDir "share/ting/chrome/userChrome.css" out.userChrome)
-        (writeTextDir "share/ting/chrome/palette.css" out.paletteCss)
-        (writeTextDir "share/ting/chrome/userContent.css" out.userContentCss)
-        (writeTextDir "share/ting/sidebery/sidebery.css" out.sidebery.css)
-        (writeTextDir "share/ting/sidebery/sidebery.json" out.sidebery.json)
-        (writeTextDir "share/ting/README.md" (builtins.readFile ./README.md))
-      ]
-      ++ drPaths;
+    paths = [
+      (writeTextDir "share/ting/chrome/userChrome.css" out.userChrome)
+      (writeTextDir "share/ting/chrome/palette.css" out.paletteCss)
+      (writeTextDir "share/ting/chrome/userContent.css" out.userContentCss)
+      (writeTextDir "share/ting/sidebery/sidebery.css" out.sidebery.css)
+      (writeTextDir "share/ting/sidebery/sidebery.json" out.sidebery.json)
+      (writeTextDir "share/ting/README.md" (builtins.readFile ./README.md))
+    ];
     passthru = {
       inherit
         (out)
         userChrome
         paletteCss
         userContentCss
-        darkreaderJson
         sidebery
         meta
         ;

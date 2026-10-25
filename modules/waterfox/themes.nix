@@ -133,7 +133,6 @@ in {
       companions = lib.filterAttrs (_: text: text != "") {
         "sidebery.css" = composed.sidebery.css;
         "sidebery.json" = composed.sidebery.json;
-        "darkreader.json" = composed.darkreaderJson;
       };
     };
 

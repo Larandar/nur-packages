@@ -62,8 +62,6 @@ chrome/palette.css      THE runtime contract — swap me, not the chrome
 chrome/userContent.css  about: pages + DarkReader web theming (colors inlined)
 /etc/ting/sidebery.css     Sidebery's sidebar CSS (also given as policy)
 /etc/ting/sidebery.json    Sidebery's styles as an import file
-/etc/ting/darkreader.json  Dark Reader settings snapshot
-                              (only when darkreader.mode = "extension")
 ```
 
 ---
@@ -106,7 +104,7 @@ programs.waterfox = {
 
       darkreader = {
         enable = true;                # re-theme web content with the palette
-        mode = "extension";           # extension | tint | invert
+        mode = null;                  # null (stock pages) | tint | invert
         exempt = [ ];                 # url prefixes left untouched
         followScheme = true;          # follow OS light/dark theme variant
       };
@@ -187,14 +185,14 @@ the browser follows your wallpaper; `stylix.polarity` picks the glass.
 
 `programs.waterfox.themes.ting.compose.darkreader` re-themes **web pages**
 (not just `about:` pages) with your palette — the Dark Reader idea, but
-generated from the same nix expression as the chrome. By default it only
-writes the settings for the Dark Reader extension; the CSS engines are
-opt-in:
+generated from the same nix expression as the chrome. The CSS engines are
+opt-in: by default web pages keep their own colors, and the Dark Reader
+extension, if you use it, is yours to configure by hand.
 
 ```nix
 programs.waterfox.themes.ting.compose.darkreader = {
   enable = true;             # on by default
-  mode = "extension";        # extension | tint | invert
+  mode = "tint";             # null (the default) | tint | invert
   exempt = [ "https://example.com" ];  # left untouched (undo block emitted)
   aboutPages = true;         # keep the about:/newtab re-skin
   followScheme = true;       # emit light AND dark variants
@@ -208,13 +206,12 @@ programs.waterfox.themes.ting.compose.darkreader = {
 | --- | --- | --- |
 | `tint` | targeted palette-colored overrides: html/body, links, headings, forms, code, tables, selection, scrollbars + `color-scheme` | honest heuristic — layout and `position:fixed` survive; some sites leak their own colors |
 | `invert` | `filter: invert(1) hue-rotate(180deg)` on `html`, media re-inverted; the canvas is pre-painted with the per-channel inverse of your palette so the filter lands exactly on it | converts everything, but breaks `position:fixed` on some pages |
-| `extension` (default) | emits no web CSS; instead writes `/etc/ting/darkreader.json` | import it into the real [Dark Reader](https://addons.mozilla.org/firefox/addon/darkreader/) extension (Settings → Manage settings → Import); colors follow both scheme variants |
 
 **Light/dark variants.** With `followScheme = true` (default) every rule is
 evaluated twice — once against your palette, once against the *opposite*
 polarity — and wrapped in `prefers-color-scheme` media queries. The module
 pins Firefox to system-follow (`layout.css.prefers-color-scheme.content-
-override = 2`), so web content, about: pages and the DarkReader all switch
+override = 2`), so web content and about: pages switch
 when your desktop theme switches — including time-based schedulers. The
 opposite polarity is *derived* like Dark Reader does: luminance inverted,
 hues kept (`<palette>-daylight` / `<palette>-nocturne`), or supply your own

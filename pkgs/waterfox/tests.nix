@@ -142,18 +142,7 @@ in
       checked "waterfox-nixos-module-ting" {
         "Sidebery's companion in /etc" = nixosTing.environment.etc ? "ting/sidebery.css";
         "no chrome without a theme" = nixos.programs.waterfox.chrome == null;
-        "Dark Reader's settings in its 4.9 shape" = let
-          darkreader = builtins.fromJSON nixosTing.environment.etc."ting/darkreader.json".text;
-        in
-          darkreader.theme.darkSchemeBackgroundColor
-          != null
-          && darkreader.automation
-          == {
-            enabled = true;
-            mode = "system";
-            behavior = "Scheme";
-          }
-          && !(darkreader ? siteList);
+        "Dark Reader left to its owner" = !(nixosTing.environment.etc ? "ting/darkreader.json");
       } ''
         chrome=$(sed -n 's|.*newURI("file://\(/nix/store/[^/]*\)/".*|\1|p' ${package}/lib/waterfox/waterfox.cfg)
         test -s "$chrome/userChrome.css"

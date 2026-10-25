@@ -8,8 +8,6 @@
 #             converts everything, breaks position:fixed on some pages.
 #             The canvas is pre-painted with invertHex(target) so the filter
 #             lands exactly on the palette background.
-#   extension no CSS at all; the composer emits a Dark Reader extension
-#             settings JSON (darkreaderJson) instead.
 #
 # Returns { dark, light } rule bodies WITHOUT document guards or
 # prefers-color-scheme wrappers — the composer wraps them (@-moz-document
