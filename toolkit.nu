@@ -104,8 +104,10 @@ export def jobs [
     let updates = $stale | where name in $owned | each {|row| {kind: update, name: $row.name, to: $row.fresh} }
     let nightlies = $released | each {|package|
         let source = upstream $package
-        let head = branch-head $"($source.repository).git" $source.branch
-        if (nightly-rev $package) != $head { {kind: nightly, name: $package, to: $head} }
+        if $source.branch != null {
+            let head = branch-head $"($source.repository).git" $source.branch
+            if (nightly-rev $package) != $head { {kind: nightly, name: $package, to: $head} }
+        }
     } | compact
     $releases ++ $nightlies ++ $updates
     | where {|job| ($names | is-empty) or $job.name in $names }
@@ -501,7 +503,8 @@ def targets [attribute: string]: nothing -> list<string> {
 
 # The attribute paths of a package's `passthru.tests`, if it has any.
 def test-attributes [attribute: string]: nothing -> list<string> {
-    let names = ^nix eval --json --file . $"($attribute).tests" --apply builtins.attrNames | complete
+    let apply = 't: builtins.filter (n: (t.${n}.type or null) == "derivation") (builtins.attrNames t)'
+    let names = ^nix eval --json --file . $"($attribute).tests" --apply $apply | complete
     if $names.exit_code != 0 { return [] }
     $names.stdout | from json | each {|name| $"($attribute).tests.($name)" }
 }
@@ -576,16 +579,20 @@ def set-lock-entry [name: string, entry: record]: nothing -> nothing {
     ^nixtamal lock --no-tui
 }
 
-# Where a release package's upstream lives, from its archive URL on `main`, and its default branch.
+# Where a release package's upstream lives, from its archive URL on `main` (or its `upstreamRepository`), and the
+# default branch a nightly follows, null when it has none.
 def upstream [package: string]: nothing -> record {
     let url = (pinned $package).kd.1.ur
-    let repository = $url | parse --regex '^(?<repository>https://github\.com/[^/]+/[^/]+)/archive/' | get --optional 0.repository
-    if $repository == null {
-        error make {msg: $"($package): only GitHub release archives can follow a branch, not ($url)"}
+    let archive = $url | parse --regex '^(?<repository>https://github\.com/[^/]+/[^/]+)/archive/' | get --optional 0.repository
+    if $archive == null {
+        # A release fetched from elsewhere (Waterfox's CDN) names the GitHub repository its tags come from, and has no
+        # branch build to follow.
+        let repository = ^nix eval --raw --file . $"($package).upstreamRepository" | str trim
+        return {repository: $repository, branch: null}
     }
-    let branch = ^git ls-remote --symref $"($repository).git" HEAD
+    let branch = ^git ls-remote --symref $"($archive).git" HEAD
     | parse --regex 'ref: refs/heads/(?<branch>\S+)\s+HEAD' | get 0.branch
-    {repository: $repository, branch: $branch}
+    {repository: $archive, branch: $branch}
 }
 
 # Copy a package's state at `revision` into the working copy: its `pkgs/<package>/`, its manifest block and its

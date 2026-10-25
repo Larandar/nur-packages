@@ -4,6 +4,7 @@
 ,"celld":{"sn":"celld-src","kd":[1,{"ft":1,"ur":"https://github.com/denoland/celld/archive/refs/tags/v0.6.3.tar.gz","ms":[],"ex":null}],"ha":{"al":0,"vl":"sha256-KL3/LMFz+7mbBZ/d6MQ3uP7qJtVAStzs9BVuEoIit+Y="},"fv":"v0.6.3","ps":[]}
 ,"celld-rusty-v8":{"sn":"celld-rusty-v8-src","kd":[0,{"ft":0,"ur":"https://github.com/denoland/rusty_v8/releases/download/v152.1.0/librusty_v8_release_x86_64-unknown-linux-gnu.a.gz","ms":[]}],"ha":{"al":0,"vl":"sha256-VrPZwer2AINF3rP3yWqtIhfpHGXYt4v+VQ9Sw6jbtQ8="},"fv":"152.1.0","ps":[]}
 ,"engram":{"sn":"engram-src","kd":[1,{"ft":1,"ur":"https://github.com/Gentleman-Programming/engram/archive/refs/tags/v3.6.0.tar.gz","ms":[],"ex":null}],"ha":{"al":0,"vl":"sha256-lVLGjn/eYUNy5S/Ct9lTWGiFso40EKrlIDmD+aUaDgg="},"fv":"v3.6.0","ps":[]}
+,"home-manager":{"sn":"home-manager-src","kd":[2,{"ft":1,"rp":"https://github.com/nix-community/home-manager.git","ms":[],"rf":[1,"master"],"dt":"2026-10-24T00:06:11-05:00","sm":false,"lf":false,"lr":"2cd3234928f60bbff695a7ee56115ef7799c47cd"}],"ha":{"al":0,"vl":"sha256-yhEZAzZRNvzYpoAlyFY3wM75V9BmkIXJIueof8S5gOg="},"fv":null,"ps":[]}
 ,"kasetto":{"sn":"kasetto-src","kd":[1,{"ft":1,"ur":"https://github.com/pivoshenko/kasetto/archive/refs/tags/v3.11.0.tar.gz","ms":[],"ex":null}],"ha":{"al":0,"vl":"sha256-rDdXLgyy/4Bs1+bK/1k4zxjOzZXGBdzbqLm7zfqONJo="},"fv":"v3.11.0","ps":[]}
 ,"neocursor":{"sn":"neocursor-src","kd":[1,{"ft":1,"ur":"https://github.com/teocns/neocursor.nvim/archive/refs/tags/v0.4.0.tar.gz","ms":[],"ex":null}],"ha":{"al":0,"vl":"sha256-qJK3CksZ8PVIOTonPRHuE+8g3WgP6eVOeQJnoHBPTV0="},"fv":"v0.4.0","ps":[]}
 ,"nixtamal":{"sn":"nixtamal-src","kd":[3,{"rp":"https://darcs.toastal.in.th/nixtamal/next/","ms":[],"dt":"2026-10-24T16:26:40Z","rf":[0,[0,"./darcs_context/nixtamal.txt"]],"lw":"7c74155f6ff4291325477880ea523704abb472a0"}],"ha":{"al":0,"vl":"sha256-YwEfttoD+6vb3lt7ryonTXJI8QsdeWlGS4xsW7k7oWc="},"fv":"7c74155f6ff4291325477880ea523704abb472a0","ps":[]}
@@ -11,6 +12,7 @@
 ,"nu-plugin-ws":{"sn":"nu-plugin-ws-src","kd":[2,{"ft":1,"rp":"https://github.com/alex-kattathra-johnson/nu_plugin_ws.git","ms":[],"rf":[1,"main"],"dt":"2025-09-28T21:22:04-05:00","sm":false,"lf":false,"lr":"5e9b47ef7a48ba32b8f56f9b4fa4939c3600e835"}],"ha":{"al":0,"vl":"sha256-Iw9yyN9o0B7i3GoyXRpJSANmVBAG6P4ouZCUrG2EHnc="},"fv":null,"ps":[]}
 ,"phrog":{"sn":"phrog-src","kd":[1,{"ft":1,"ur":"https://github.com/samcday/phrog/archive/refs/tags/0.53.0.tar.gz","ms":[],"ex":null}],"ha":{"al":0,"vl":"sha256-ojr5k6eYONMNDk/DwWU6RxCDv9TrnUskFqL+2X0DIT0="},"fv":"0.53.0","ps":[]}
 ,"snix":{"sn":"snix-src","kd":[2,{"ft":1,"rp":"https://git.snix.dev/snix/snix.git","ms":[],"rf":[1,"canon"],"dt":"2026-10-19T19:21:23Z","sm":false,"lf":false,"lr":"1eb7ab31ece4a351493610ea9003781083ef61f6"}],"ha":{"al":0,"vl":"sha256-z6MgBDW2qsbjDo/gErNmeNfZegyZliOQmYvL5yw6cDU="},"fv":null,"ps":[]}
+,"waterfox":{"sn":"waterfox-src","kd":[1,{"ft":1,"ur":"https://cdn1.waterfox.net/waterfox/releases/6.7.6/Linux_x86_64/waterfox-6.7.6.tar.bz2","ms":[],"ex":null}],"ha":{"al":0,"vl":"sha256-mijCsNdaOl9sIP5PHNzJYjXaxyvWUdWGkErWtKgd+cI="},"fv":"6.7.6","ps":[]}
 }
 ,"p":{}
 }

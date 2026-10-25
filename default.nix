@@ -2,6 +2,7 @@
 {pkgs ? import (import ./nix/tamal {}).nixpkgs {}}: let
   pins = import ./nix/pins.nix {inherit pkgs;};
   inherit (pins) inputs;
+  waterfox = pins.package "waterfox" ./pkgs/waterfox {homeManager = inputs.home-manager;};
   nixtamal = pkgs.callPackage ./pkgs/nixtamal {
     inherit (pkgs) nixtamal;
     src = inputs.nixtamal;
@@ -10,6 +11,7 @@ in {
   # Reserved names: overlay.nix, and through it ci.nix, excludes them from the package set.
   lib = import ./lib {inherit pkgs;};
   nixosModules = import ./nixos-modules;
+  homeModules = import ./home-modules;
   overlays = import ./overlays;
   default.devShell = pkgs.mkShell {
     packages = [
@@ -32,6 +34,8 @@ in {
   phrog = pins.package "phrog" ./pkgs/phrog {};
   neocursor = pins.package "neocursor" ./pkgs/neocursor {};
   snix = pins.package "snix" ./pkgs/snix {};
+  inherit waterfox;
+  waterfox-unwrapped = waterfox.unwrapped;
   nu-plugin-ws = pins.package "nu-plugin-ws" ./pkgs/nu-plugin-ws {};
   nu-plugin-mongo = pins.package "nu-plugin-mongo" ./pkgs/nu-plugin-mongo {};
   celld = pins.package "celld" ./pkgs/celld {

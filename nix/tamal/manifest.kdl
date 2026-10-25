@@ -87,4 +87,19 @@ inputs {
 			branch main
 		}
 	}
+	waterfox {
+		archive fetch-time=eval {
+			url "https://cdn1.waterfox.net/waterfox/releases/{{fresh_value}}/Linux_x86_64/waterfox-{{fresh_value}}.tar.bz2"
+		}
+		fresh-cmd {
+			$ nu "--no-config-file" "nix/fresh.nu" release "https://github.com/BrowserWorks/waterfox"
+		}
+	}
+	// Evaluates homeModules in package tests; nothing builds from it.
+	home-manager {
+		git fetch-time=eval {
+			repository "https://github.com/nix-community/home-manager.git"
+			branch master
+		}
+	}
 }
