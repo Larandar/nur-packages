@@ -108,17 +108,42 @@ from midgard-flakes, rebased onto the pinned `next`. When a refresh moves
 of its prefetchers and the caller's PATH, such as `[nushell]`.
 `default.devShell` enables the `shell` patch with `packages = [nushell]`.
 
+## CI
+
+Spindle runs `.tangled/workflows/`, building through the host's Nix daemon
+(`NIX_REMOTE=daemon`): outputs land in the host store, which owns caching.
+
+- `plan.yml`, scheduled: `toolkit plan --publish` finds the jobs
+  (`toolkit jobs`: new upstream releases, moved nightlies, stale inputs `main`
+  owns) and pushes one candidate branch `ci/<kind>/<name>` per job, with
+  nothing built. Release and update candidates get a pull request into `main`.
+- `verify.yml`, on each candidate push: `toolkit verify --publish` builds,
+  tests and repairs the candidate, then advances `<pkg>/nightly` (updating its
+  pull request) or lands the release or update on `main`, tags it, and records
+  its pull requests as merged. An update whose pin does not build is not
+  landed, so `main` keeps its last good pin. The next nightly after a release
+  opens a new pull request.
+- `check.yml`: `toolkit check` on pull requests from people.
+
+Publishing needs two spindle secrets: `NUR_SSH_KEY`, the private half of a key
+registered on the account, for pushes; and `NUR_APP_PASSWORD`, an ATProto app
+password, for the pull request records (`nix/tangled.nu`). Without
+`NUR_SSH_KEY`, `--publish` runs build and publish nothing.
+
 ## Commands
 
 ```nu
 overlay use --prefix toolkit.nu
-toolkit update           # refresh what main owns, commit to main
+toolkit update           # plan + verify the update jobs, one landing each
 toolkit update nixpkgs   # refresh one input
 toolkit check engram     # build and test, propose lock.nuon fixes
 toolkit check --fix      # the same for every package, applying the fixes
 toolkit hashes engram    # recompute one package's lock.nuon from scratch
-toolkit nightly          # advance every nightly whose upstream moved
-toolkit release          # land new upstream releases on main, tag them
+toolkit jobs             # what the pins call for, without building
+toolkit plan             # prepare one candidate per job on ci/<kind>/<name>
+toolkit verify           # build, repair, then advance or land each candidate
+toolkit nightly          # plan + verify the nightly jobs
+toolkit release          # plan + verify the release jobs, tag the rest
 toolkit load-shell       # repo tooling (this repo's nixtamal) in scope
 toolkit load-shell nixtamal  # plus each named package's devShell
 ```

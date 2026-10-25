@@ -1,0 +1,23 @@
+# Pull requests into main from people: build and test every package.
+when:
+  - event: ["pull_request"]
+    branch: ["main"]
+  - event: ["manual"]
+
+engine: "nixery"
+
+dependencies:
+  nixpkgs:
+    - bash
+    - git
+    - nix
+    - nushell
+
+environment:
+  NIX_REMOTE: "daemon"
+  NIX_CONFIG: "experimental-features = nix-command flakes"
+
+steps:
+  - name: "Check every package"
+    command: |
+      nu --no-config-file -c 'overlay use --prefix toolkit.nu; toolkit check'

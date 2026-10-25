@@ -52,61 +52,317 @@ export alias load-shell = do --env {|...packages: string|
   with-nix-shell $"($root)#default.devShell" ...($packages | each {|package| $"($root)#($package).devShell" })
 }
 
-# Refresh the pins `main` owns (nixpkgs, tooling, packages without releases), build, test and repair what moved,
-# and commit it to `main`. Release pins move only through `toolkit release`; nightlies merge `main` when they next move.
-@example "Refresh every pin main owns" { toolkit update }
-@example "Refresh only nixpkgs" { toolkit update nixpkgs }
-export def update [
-  ...inputs: string # Inputs to refresh; every input main owns when omitted
+use nix/tangled.nu
+
+# Make a CI checkout able to plan, verify and publish: full history, branches and tags from `origin`, a colocated jj
+# repository tracking them, and a CI identity. With the `NUR_SSH_KEY` secret, also install the key and push to
+# `NUR_PUSH_URL`.
+export def ci-prepare []: nothing -> nothing {
+    cd $root
+    let shallow = (^git rev-parse --is-shallow-repository | str trim) == "true"
+    ^git fetch --tags ...(if $shallow { [--unshallow] } else { [] }) origin "+refs/heads/*:refs/remotes/origin/*"
+    if not ($"($root)/.jj" | path exists) { ^jj git init --colocate }
+    ^jj config set --repo user.name ($env.NUR_CI_NAME? | default "nur-packages CI")
+    ^jj config set --repo user.email ($env.NUR_CI_EMAIL? | default "ci@nur-packages.invalid")
+    ^jj bookmark track "*" --remote origin
+    if (publishable) {
+        let key = $"($env.HOME)/.ssh/nur-packages"
+        mkdir ($key | path dirname)
+        $"($env.NUR_SSH_KEY | str trim)\n" | save --force $key
+        ^chmod 600 $key
+        ^git config core.sshCommand $"ssh -i ($key) -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+        ^git remote set-url --push origin $env.NUR_PUSH_URL
+    }
+    ^jj new main
+}
+
+# Publishing needs the `NUR_SSH_KEY` secret; without it, `--publish` runs stay local.
+def publishable []: nothing -> bool {
+    ($env.NUR_SSH_KEY? | default "" | str trim) != ""
+}
+
+def publishing [requested: bool]: nothing -> bool {
+    if $requested and not (publishable) { print "NUR_SSH_KEY is not set: building locally, publishing nothing." }
+    $requested and (publishable)
+}
+
+# The work the pins call for, found without building: `release` (a release package's upstream tagged a newer
+# release), `nightly` (its default branch moved past the nightly branch) and `update` (an input `main` owns is
+# stale: nixpkgs, tooling, packages without releases such as the Nushell plugins).
+@example "List every job" { toolkit jobs }
+@example "List engram's jobs" { toolkit jobs engram }
+export def jobs [
+  ...names: string # Packages or inputs to consider; all of them when omitted
+  --kind: string # Only `release`, `nightly` or `update` jobs
+]: nothing -> table {
+    cd $root
+    load-shell
+    let stale = ^nixtamal list-stale --color never | lines | where $it != "" | parse '{name}: {fresh}'
+    let released = release-packages
+    let owned = owned-inputs
+    let releases = $stale | where name in $released | each {|row| {kind: release, name: $row.name, to: $row.fresh} }
+    let updates = $stale | where name in $owned | each {|row| {kind: update, name: $row.name, to: $row.fresh} }
+    let nightlies = $released | each {|package|
+        let source = upstream $package
+        let head = branch-head $"($source.repository).git" $source.branch
+        if (nightly-rev $package) != $head { {kind: nightly, name: $package, to: $head} }
+    } | compact
+    $releases ++ $nightlies ++ $updates
+    | where {|job| ($names | is-empty) or $job.name in $names }
+    | where {|job| $kind == null or $job.kind == $kind }
+}
+
+# Inputs `main` owns: everything but release packages and their companions.
+def owned-inputs []: nothing -> list<string> {
+    let released = release-packages | each {|package| [$package] ++ (companions $package) } | flatten
+    open $"($root)/nix/tamal/lock.json" | get i | columns | where $it not-in $released
+}
+
+# The upstream revision `<package>/nightly` pins, or null without a nightly branch.
+def nightly-rev [package: string]: nothing -> any {
+    let branch = $"($package)/nightly"
+    if not (has-bookmark $branch) { return null }
+    ^jj file show --revision $branch nix/tamal/lock.json | from json | get i | get $package | get kd | get 1 | get lr?
+}
+
+def candidate-branch [job: record]: nothing -> string {
+    $"ci/($job.kind)/($job.name)"
+}
+
+# Prepare a candidate for each job on `ci/<kind>/<name>`: the pin move, built on what it changes (the nightly branch,
+# or `main`), with nothing built yet; `toolkit verify` builds, repairs and advances it. With `--publish`, push the
+# candidates (their pushes start CI's verify runs) and open or update the release and update pull requests.
+@example "Prepare every job locally" { toolkit plan }
+@example "CI's scheduled planner" { toolkit plan --publish }
+export def plan [
+  ...names: string # Packages or inputs to consider; all of them when omitted
+  --kind: string # Only `release`, `nightly` or `update` jobs
+  --publish # Push the candidates and open their pull requests
+]: nothing -> list<string> {
+    cd $root
+    assert-on-main
+    let publish = publishing $publish
+    let found = jobs ...$names --kind $kind
+    print ($found | table)
+    $found | each {|job|
+        let prepared = match $job.kind {
+            nightly => (prepare-nightly $job.name)
+            release => (prepare-release $job.name)
+            update => (prepare-update $job.name)
+        }
+        let candidate = candidate-branch $job
+        if $prepared {
+            ^jj bookmark set $candidate --revision @ --allow-backwards
+            if $publish {
+                ^git push --force origin $"refs/heads/($candidate):refs/heads/($candidate)"
+                if $job.kind != nightly {
+                    let message = ^jj log --no-graph --revisions $candidate --template description | str trim
+                    tangled open-or-update (tangled session) $env.NUR_REPO_DID $candidate main ($message | lines | first) $message | ignore
+                }
+            }
+        }
+        ^jj new main
+        if $prepared { $candidate }
+    } | compact
+}
+
+# A nightly candidate: one commit on `<package>/nightly` moving the pin to upstream's default branch head. When `main`
+# moved since the branch's last commit, the commit merges it: its tree is `main` plus the package's directory,
+# manifest block and lock entry, so the lock never conflicts. The first nightly cuts the branch from `main`.
+def prepare-nightly [package: string]: nothing -> bool {
+    let branch = $"($package)/nightly"
+    let source = upstream $package
+    let merged = (has-bookmark $branch) and ((^jj log --no-graph --revisions $"main & ::($branch)" --template '"x"' | str trim) == "")
+    if (has-bookmark $branch) {
+        if $merged {
+            ^jj new $branch main
+            ^jj restore --from main
+            transplant $package $branch
+        } else {
+            ^jj new $branch
+        }
+        load-shell
+        ^nixtamal refresh --no-tui $package
+    } else {
+        ^jj new main
+        replace-block $package [
+            $"\t($package) {"
+            "\t\tgit fetch-time=eval {"
+            $"\t\t\trepository \"($source.repository).git\""
+            $"\t\t\tbranch ($source.branch)"
+            "\t\t}"
+            "\t}"
+        ]
+        load-shell
+        ^nixtamal lock --force --no-tui $package
+    }
+    refresh-companions $package
+    ^jj describe --message (nightly-message $package $merged)
+    true
+}
+
+# A release candidate: one commit on `main` carrying the nightly's state with the input back on the release archive
+# at the newest tag, described with the upstream release notes.
+def prepare-release [package: string]: nothing -> bool {
+    let branch = $"($package)/nightly"
+    let current = pinned $package
+    let repository = (upstream $package).repository
+    let archive = open --raw $"($root)/nix/tamal/manifest.kdl" | input-block $package
+    let nightly = if (has-bookmark $branch) { commit-of $branch } else { null }
+    ^jj new main
+    if $nightly != null { transplant $package $branch }
+    replace-block $package $archive
+    set-lock-entry $package $current
+    load-shell
+    ^nixtamal lock --force --no-tui $package
+    refresh-companions $package
+    ^jj describe --message (release-message $package $repository (pinned $package).fv $nightly)
+    true
+}
+
+# An update candidate: one commit on `main` refreshing input `name`; false when only its recorded fresh value moved.
+def prepare-update [name: string]: nothing -> bool {
+    let before = pinned $name | reject --optional fv
+    ^jj new main
+    load-shell
+    ^nixtamal refresh --no-tui $name
+    if ((pinned $name | reject --optional fv) == $before) {
+        ^jj abandon @
+        return false
+    }
+    ^jj describe --message $"Update ($name)"
+    true
+}
+
+# Build, test and repair each candidate (`check --fix`, Nushell plugin locks), folding repairs into it. A green nightly
+# candidate advances `<package>/nightly`; a green release or update lands on `main` as one commit and is tagged.
+# With `--publish`, push what moved, keep the pull requests current, and settle the landed ones as merged.
+@example "Verify every local candidate" { toolkit verify }
+@example "CI's run for one pushed candidate" { toolkit verify --publish ci/release/engram }
+export def verify [
+  ...candidates: string # Candidate branches `ci/<kind>/<name>`; every local one when omitted
+  --publish # Push the results and update pull requests
 ]: nothing -> nothing {
     cd $root
     assert-on-main
+    let publish = publishing $publish
+    let candidates = if ($candidates | is-empty) {
+        ^jj bookmark list --template 'name ++ "\n"' | lines | where $it starts-with "ci/" | uniq
+    } else { $candidates }
+    for candidate in $candidates {
+        let job = $candidate | parse 'ci/{kind}/{name}' | first
+        ^jj new $candidate
+        let packages = affected $job
+        let plugins = $packages | where $it in (plugin-names)
+        if ($plugins | is-not-empty) { cargo-lock ...$plugins }
+        if ($packages | is-not-empty) { check --fix ...$packages }
+        ^jj squash
+        if $job.kind == nightly {
+            advance-nightly $job.name $candidate $publish
+        } else {
+            land $job $candidate $publish
+        }
+        ^jj bookmark delete $candidate
+        if $publish { ^git push origin $":refs/heads/($candidate)" }
+        ^jj new main
+    }
+}
+
+# The packages a job's candidate must build: the package itself, or for an update the package its input feeds, and
+# every package when nixpkgs moves.
+def affected [job: record]: nothing -> list<string> {
+    if $job.kind != update { return [$job.name] }
+    # The repository tooling (`default.devShell`) runs the patched nixtamal on nixpkgs.
+    if $job.name == nixpkgs { return ((lock-packages) ++ [nixtamal default]) }
+    if $job.name == nixtamal { return [nixtamal default] }
+    let attributes = ^nix eval --json --impure --expr "builtins.attrNames (import ./. {})" | from json
+    if $job.name in $attributes { [$job.name] } else { [] }
+}
+
+def advance-nightly [package: string, candidate: string, publish: bool]: nothing -> nothing {
+    let branch = $"($package)/nightly"
+    ^jj bookmark set $branch --revision $candidate
+    print $"($branch): (^jj log --no-graph --revisions $branch --template 'description.first_line()')"
+    if $publish {
+        ^git push origin $"refs/heads/($branch):refs/heads/($branch)"
+        tangled open-or-update (tangled session) $env.NUR_REPO_DID $branch main $"($package): nightly" "Upstream's default branch, built, tested and repaired; it lands with the next release." | ignore
+    }
+}
+
+# Copy into the working copy what `revision` changed since `base`: changed files under pkgs/, and the lock entries and
+# manifest blocks of changed inputs, then regenerate the loader. Structural, so neighbouring inputs never conflict.
+def apply-changes [revision: string, base: string]: nothing -> nothing {
+    let pins = [nix/tamal/manifest.kdl nix/tamal/lock.json nix/tamal/default.nix]
+    for path in (^jj diff --from $base --to $revision --name-only | lines | where $it not-in $pins) {
+        if (^jj file list --revision $revision $path | str trim) == "" {
+            rm --force $path
+        } else {
+            mkdir ($path | path dirname)
+            ^jj file show --revision $revision $path | save --force --raw $path
+        }
+    }
+    let before = ^jj file show --revision $base nix/tamal/lock.json | from json | get i
+    let after = ^jj file show --revision $revision nix/tamal/lock.json | from json | get i
+    let manifest = ^jj file show --revision $revision nix/tamal/manifest.kdl
+    for input in ($after | columns | where {|input| ($before | get --optional $input) != ($after | get $input) }) {
+        replace-block $input ($manifest | input-block $input)
+        let file = $"($root)/nix/tamal/lock.json"
+        open $file | upsert i {|lock| $lock.i | upsert $input ($after | get $input) } | tamal-layout | save --force --raw $file
+    }
     load-shell
-    let released = release-packages | each {|package| [$package] ++ (companions $package) } | flatten
-    let owned = open nix/tamal/lock.json | get i | columns | where $it not-in $released
-    let inputs = if ($inputs | is-empty) { $owned } else { $inputs }
-    let released = $inputs | where $it not-in $owned
-    if ($released | is-not-empty) {
-        error make {msg: $"($released | str join ', ') follow releases; use `toolkit release`"}
-    }
-    let before = open nix/tamal/lock.json | get i
     ^nixtamal lock --no-tui
-    ^nixtamal refresh --no-tui ...$inputs
-    let after = open nix/tamal/lock.json | get i
-    let moved = $after | columns | where {|input| ($before | get --optional $input) != ($after | get $input) }
-    if ($moved | is-empty) {
-        print "Nothing moved."
-        return
+}
+
+# Land a verified release or update candidate on the latest `main` as one commit, then tag it.
+def land [job: record, candidate: string, publish: bool]: nothing -> nothing {
+    let message = ^jj log --no-graph --revisions $candidate --template description | str trim
+    mut attempts = 0
+    loop {
+        let base = commit-of $"fork_point\(main | ($candidate)\)"
+        ^jj new main
+        apply-changes $candidate $base
+        ^jj describe --message $message
+        ^jj bookmark set main --revision @
+        if not $publish { break }
+        let pushed = ^git push origin "refs/heads/main:refs/heads/main" | complete
+        if $pushed.exit_code == 0 { break }
+        # Another candidate landed first: land again on top of it.
+        $attempts += 1
+        if $attempts >= 3 { error make {msg: $"($candidate): main kept moving; ($pushed.stderr | str trim)"} }
+        ^jj abandon @
+        ^git fetch origin main
+        ^jj bookmark set main --revision "main@origin" --allow-backwards
     }
-    let packages = if "nixpkgs" in $moved { lock-packages } else { lock-packages | where $it in $moved }
-    let plugins = plugin-names | where {|plugin| "nixpkgs" in $moved or $plugin in $moved }
-    if ($plugins | is-not-empty) { cargo-lock ...$plugins }
-    # A package whose new pin fails keeps main's: for a Nushell plugin that is the last commit that compiled for this
-    # Nushell. If it fails even there, nothing is committed.
-    let kept = $packages | where {|package| try { check --fix $package; false } catch { true } }
-    for package in $kept {
-        print $"($package): the new pin fails; keeping main's"
-        transplant $package "@-"
+    let tags = match $job.kind {
+        release => {
+            let commit = commit-of main
+            ^git tag --force $"($job.name)/stable" $commit
+            let tag = $"($job.name)/releases/((pinned $job.name).fv)"
+            if (^git tag --list $tag | str trim) == "" { ^git tag $tag $commit }
+            [$"($job.name)/stable" $tag]
+        }
+        update => {
+            affected $job | where $it in (plugin-names) | each {|plugin| tag-plugin $plugin } | flatten
+        }
     }
-    if ($kept | is-not-empty) { check ...$kept }
-    if (^jj diff --summary | str trim) == "" {
-        print "Nothing moved that builds."
-        return
+    print $"main: ($message | lines | first)"
+    if $publish {
+        for tag in $tags { ^git push --force origin $"refs/tags/($tag)" }
+        let session = tangled session
+        tangled settle $session $env.NUR_REPO_DID $candidate
+        if $job.kind == release { tangled settle $session $env.NUR_REPO_DID $"($job.name)/nightly" }
     }
-    let advanced = $moved | where $it not-in $kept
-    ^jj commit --message $"Update ($advanced | str join ', ')"
-    ^jj bookmark set main --revision @-
-    for plugin in ($plugins | where $it in $advanced) { tag-plugin $plugin }
 }
 
 # Tag `main` for a Nushell plugin that builds there: `<plugin>/stable`, and `<plugin>/releases/<version>`, which
 # moves with each newer commit that still compiles as that `<crate version>-nu-<nushell version>`.
-def tag-plugin [plugin: string]: nothing -> nothing {
+def tag-plugin [plugin: string]: nothing -> list<string> {
     let commit = commit-of main
     let version = ^nix eval --raw --file . $"($plugin).version" | str trim
     ^git tag --force $"($plugin)/stable" $commit
     ^git tag --force $"($plugin)/releases/($version)" $commit
     print $"($plugin): ($version) stable at ($commit | str substring 0..11)"
+    [$"($plugin)/stable" $"($plugin)/releases/($version)"]
 }
 
 # nixtamal's lock encodes an input's kind as the first element of `kd`.
@@ -211,9 +467,11 @@ def check-package [package: string, fix: bool]: nothing -> record {
 # What `lock.nuon` should change for `package` to build: an empty list when it builds, rows with a null key
 # when it fails for a reason `lock.nuon` cannot fix.
 def lock-proposals [package: string, file: path]: nothing -> list<record> {
-    let entry = open $file
-    let input = pinned $package
-    if $input.kd.0 == $archive_kind {
+    # A package without derived hashes, such as nixtamal, has no lock.nuon.
+    let entry = if ($file | path exists) { open $file } else { {} }
+    # An attribute that is not itself an input, such as `default`, has no tag to check.
+    let input = open $"($root)/nix/tamal/lock.json" | get i | get --optional $package
+    if $input != null and $input.kd.0 == $archive_kind {
         let recorded = $entry.tag? | default "none"
         if $recorded != $input.fv { return [{key: tag, from: $recorded, to: $input.fv}] }
     }
@@ -354,98 +612,42 @@ def branch-head [repository: string, branch: string]: nothing -> string {
     ^git ls-remote --exit-code $repository $"refs/heads/($branch)" | split row "\t" | first
 }
 
-# Add a commit to each `<package>/nightly` when upstream's default branch moved: the pin moves to its head, with
-# whatever `check --fix` repairs. If `main` moved since the branch's last commit, that commit also merges `main`,
-# its tree being `main` plus the package's directory, manifest block and lock entry, so the lock never conflicts.
-# The first nightly cuts the branch from `main`. An unmoved upstream adds no commit; the branch only ever grows, so
-# any nightly commit stays fetchable. Local only: pushing the branch and opening its pull request are separate.
+# Advance each nightly branch whose upstream moved: `plan` then `verify` for their nightly jobs, locally.
 @example "Advance every nightly" { toolkit nightly }
-@example "Advance engram's nightly" { toolkit nightly engram }
-export def nightly [
-  ...packages: string # Packages following releases on main; all of them when omitted
-]: nothing -> nothing {
-    cd $root
-    assert-on-main
-    let packages = if ($packages | is-empty) { release-packages } else { $packages }
-    for package in $packages {
-        let branch = $"($package)/nightly"
-        let source = upstream $package
-        let head = branch-head $"($source.repository).git" $source.branch
-        if (has-bookmark $branch) {
-            let locked = ^jj file show --revision $branch nix/tamal/lock.json | from json | get i | get $package | get kd | get 1
-            if ($locked.lr? == $head) {
-                print $"($branch): upstream ($source.branch) still at ($head | str substring 0..11)"
-                continue
-            }
-            let merged = (^jj log --no-graph --revisions $"main & ::($branch)" --template '"x"' | str trim) == ""
-            if $merged {
-                ^jj new $branch main
-                ^jj restore --from main
-                transplant $package $branch
-            } else {
-                ^jj new $branch
-            }
-            load-shell
-            ^nixtamal refresh --no-tui $package
-            refresh-companions $package
-            if $package in (plugin-names) { cargo-lock $package }
-            check --fix $package
-            ^jj describe --message (nightly-message $package $merged)
+export def nightly [...packages: string]: nothing -> nothing {
+    let candidates = plan ...$packages --kind nightly
+    if ($candidates | is-not-empty) { verify ...$candidates }
+}
+
+# Land every new upstream release, locally: `plan` then `verify` for their release jobs. A package already at its
+# newest release, or a Nushell plugin, is checked and its stable tag moved instead.
+@example "Release every package with a new upstream tag" { toolkit release }
+export def release [...packages: string]: nothing -> nothing {
+    let candidates = plan ...$packages --kind release
+    if ($candidates | is-not-empty) { verify ...$candidates }
+    let landed = $candidates | each { str replace "ci/release/" "" }
+    let requested = if ($packages | is-empty) { release-packages } else { $packages }
+    for package in ($requested | where $it not-in $landed) {
+        check $package
+        if $package in (plugin-names) {
+            tag-plugin $package | ignore
         } else {
-            ^jj new main
-            replace-block $package [
-                $"\t($package) {"
-                "\t\tgit fetch-time=eval {"
-                $"\t\t\trepository \"($source.repository).git\""
-                $"\t\t\tbranch ($source.branch)"
-                "\t\t}"
-                "\t}"
-            ]
-            load-shell
-            ^nixtamal lock --force --no-tui $package
-            refresh-companions $package
-            if $package in (plugin-names) { cargo-lock $package }
-            check --fix $package
-            ^jj describe --message (nightly-message $package false)
+            let commit = commit-of main
+            ^git tag --force $"($package)/stable" $commit
+            let tag = $"($package)/releases/((pinned $package).fv)"
+            if (^git tag --list $tag | str trim) == "" { ^git tag $tag $commit }
+            print $"($package): ((pinned $package).fv) stable at ($commit | str substring 0..11)"
         }
-        ^jj bookmark set $branch --revision @
-        print $"($branch): (^jj log --no-graph --revisions @ --template 'description.first_line()')"
-        ^jj new main
     }
 }
 
-# Release each package whose upstream tagged a newer release: the last nightly lands on `main` as one curated
-# commit, its input back on the release archive at the new tag, built, tested and repaired; `main` moves there and
-# is tagged `<package>/stable` and `<package>/releases/<tag>`. The nightly branch is left alone: its next commit
-# merges `main`. A package already at its newest release is checked and tagged `<package>/stable` again.
-# Local only: pushing is a separate step.
-@example "Release every package with a new upstream tag" { toolkit release }
-@example "Release engram" { toolkit release engram }
-export def release [
-  ...packages: string # Packages following releases on main, or Nushell plugins; every release package when omitted
-]: nothing -> nothing {
-    cd $root
-    assert-on-main
-    let packages = if ($packages | is-empty) { release-packages } else { $packages }
-    for package in $packages {
-        if $package in (plugin-names) {
-            check $package
-            tag-plugin $package
-            continue
-        }
-        let current = pinned $package
-        let source = upstream $package
-        let newest = ^nu --no-config-file nix/fresh.nu release $source.repository | str trim
-        if $newest == $current.fv {
-            check $package
-        } else {
-            land $package $current $source.repository
-        }
-        let commit = commit-of main
-        ^git tag --force $"($package)/stable" $commit
-        let tag = $"($package)/releases/((pinned $package).fv)"
-        if (^git tag --list $tag | str trim) == "" { ^git tag $tag $commit }
-        print $"($package): ((pinned $package).fv) stable at ($commit | str substring 0..11)"
+# Refresh the inputs `main` owns, locally: `plan` then `verify` for their update jobs. Each lands on its own; one whose
+# new pin does not build stays unlanded, so `main` keeps its last good pin.
+@example "Refresh every input main owns" { toolkit update }
+export def update [...inputs: string]: nothing -> nothing {
+    let candidates = plan ...$inputs --kind update
+    for candidate in $candidates {
+        try { verify $candidate } catch {|err| print $"($candidate): not landed: ($err.msg | lines | first)" }
     }
 }
 
@@ -466,26 +668,6 @@ def release-message [package: string, repository: string, tag: string, nightly: 
     | append (if ($shown | is-empty) { [] } else { [""] ++ $shown })
     | append (if ($trailers | is-empty) { [] } else { [""] ++ $trailers })
     | str join "\n"
-}
-
-# Land `<package>/nightly` on `main` as one commit with the input back on its release archive, relocked at the
-# newest tag and checked, then move `main` there.
-def land [package: string, current: record, repository: string]: nothing -> nothing {
-    let branch = $"($package)/nightly"
-    let archive = open --raw $"($root)/nix/tamal/manifest.kdl" | input-block $package
-    let nightly = if (has-bookmark $branch) { commit-of $branch } else { null }
-    ^jj new main
-    if $nightly != null { transplant $package $branch }
-    replace-block $package $archive
-    set-lock-entry $package $current
-    load-shell
-    ^nixtamal lock --force --no-tui $package
-    refresh-companions $package
-    if $package in (plugin-names) { cargo-lock $package }
-    check --fix $package
-    ^jj describe --message (release-message $package $repository (pinned $package).fv $nightly)
-    ^jj bookmark set main --revision @
-    ^jj new main
 }
 
 # Regenerate each Nushell plugin's `Cargo.lock` for its pinned source and the Nushell its build targets.

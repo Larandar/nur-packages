@@ -1,0 +1,30 @@
+# One run per candidate branch the planner pushes: build, test and repair it, then advance its nightly branch or land
+# it on main, push, tag, and keep its pull request current.
+when:
+  - event: ["push"]
+    branch: ["ci/**"]
+
+engine: "nixery"
+
+dependencies:
+  nixpkgs:
+    - bash
+    - git
+    - gzip
+    - jujutsu
+    - nix
+    - nushell
+    - openssh
+
+environment:
+  NIX_REMOTE: "daemon"
+  NIX_CONFIG: "experimental-features = nix-command flakes"
+  NUR_HANDLE: "larandar.tngl.sh"
+  NUR_REPO_DID: "did:plc:63zy6oaqgtelfyyhby3f74oo"
+  NUR_PUSH_URL: "git@knot.et0.pw:did:plc:63zy6oaqgtelfyyhby3f74oo"
+  NUR_CI_EMAIL: "git@lar.ad"
+
+steps:
+  - name: "Verify the candidate"
+    command: |
+      nu --no-config-file -c 'overlay use --prefix toolkit.nu; toolkit ci-prepare; toolkit verify --publish $env.TANGLED_REF_NAME'

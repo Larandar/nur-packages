@@ -1,0 +1,33 @@
+# The scheduled planner: find the jobs the pins call for and push one candidate branch `ci/<kind>/<name>` per job,
+# opening its pull request; each push starts verify.yml. Builds nothing itself.
+when:
+  - event: ["schedule"]
+    schedule:
+      - cron: "H 3 * * *"
+  - event: ["manual"]
+
+engine: "nixery"
+
+dependencies:
+  nixpkgs:
+    - bash
+    - git
+    - gzip
+    - jujutsu
+    - nix
+    - nushell
+    - openssh
+
+environment:
+  # Builds and their outputs belong to the host's Nix daemon.
+  NIX_REMOTE: "daemon"
+  NIX_CONFIG: "experimental-features = nix-command flakes"
+  NUR_HANDLE: "larandar.tngl.sh"
+  NUR_REPO_DID: "did:plc:63zy6oaqgtelfyyhby3f74oo"
+  NUR_PUSH_URL: "git@knot.et0.pw:did:plc:63zy6oaqgtelfyyhby3f74oo"
+  NUR_CI_EMAIL: "git@lar.ad"
+
+steps:
+  - name: "Plan and publish candidates"
+    command: |
+      nu --no-config-file -c 'overlay use --prefix toolkit.nu; toolkit ci-prepare; toolkit plan --publish'
