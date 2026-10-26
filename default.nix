@@ -22,9 +22,6 @@
 in {
   # Reserved names: overlay.nix, and through it ci.nix, excludes them from the package set.
   lib = import ./lib {inherit pkgs;};
-  nixosModules = import ./nixos-modules;
-  homeModules = import ./home-modules;
-  darwinModules = import ./darwin-modules;
   overlays = import ./overlays;
   default.devShell = pkgs.mkShell {
     packages = [
