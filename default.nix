@@ -7,6 +7,14 @@
     nixDarwin = inputs.nix-darwin;
   };
   iets = (import "${inputs.iets}/nix/flake-compat.nix" {src = inputs.iets;}).defaultNix.packages.${pkgs.stdenv.hostPlatform.system}.default;
+  thinkrail = let
+    input =
+      {aarch64-darwin = "thinkrail-darwin-arm64";}.${pkgs.stdenv.hostPlatform.system} or "thinkrail";
+  in
+    pkgs.callPackage ./pkgs/thinkrail {
+      src = inputs.${input};
+      version = pkgs.lib.removePrefix "v" (pkgs.lib.importJSON ./nix/tamal/lock.json).i.${input}.fv;
+    };
   nixtamal = pkgs.callPackage ./pkgs/nixtamal {
     inherit (pkgs) nixtamal;
     src = inputs.nixtamal;
@@ -41,7 +49,7 @@ in {
   phrog = pins.package "phrog" ./pkgs/phrog {};
   neocursor = pins.package "neocursor" ./pkgs/neocursor {};
   snix = pins.package "snix" ./pkgs/snix {};
-  inherit waterfox;
+  inherit thinkrail waterfox;
   waterfox-unwrapped = waterfox.unwrapped;
   waterfox-remote = pkgs.callPackage ./pkgs/waterfox/remote {};
   ting-chrome = pkgs.callPackage ./pkgs/ting-chrome/package.nix {};

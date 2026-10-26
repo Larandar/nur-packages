@@ -103,6 +103,23 @@ inputs {
 			$ nu "--no-config-file" "nix/fresh.nu" release "https://github.com/BrowserWorks/waterfox"
 		}
 	}
+	// ThinkRail's CLI, a Bun single-file executable; each platform's binary is its own input.
+	thinkrail {
+		file {
+			url "https://github.com/JetBrains/thinkrail/releases/download/{{fresh_value}}/thinkrail-linux-x64"
+		}
+		fresh-cmd {
+			$ nu "--no-config-file" "nix/fresh.nu" release "https://github.com/JetBrains/thinkrail"
+		}
+	}
+	thinkrail-darwin-arm64 {
+		file {
+			url "https://github.com/JetBrains/thinkrail/releases/download/{{fresh_value}}/thinkrail-darwin-arm64"
+		}
+		fresh-cmd {
+			$ nu "--no-config-file" "nix/fresh.nu" release "https://github.com/JetBrains/thinkrail"
+		}
+	}
 	// SearchWala's pipeline, which searchwala-calf wraps: its releases carry a build stamp.
 	searchwala-calf {
 		archive fetch-time=eval {
