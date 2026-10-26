@@ -69,7 +69,7 @@ nix-build -A example-package
 
 - `pkgs/` — packages, registered in `default.nix`
 - `lib/`, `overlays/` — library functions, overlays
-- `modules/` — modules, exported by `nixos-modules/`, `darwin-modules/` and `home-modules/`
+- `modules/` — modules, exported as `flake.nix`'s `nixosModules`, `darwinModules` and `homeModules`
 - `ci.nix` — the buildable and cacheable package set
 - `nix/tamal/` — every pin, managed by [nixtamal](https://nixtamal.toast.al); see `AGENTS.md`
 
