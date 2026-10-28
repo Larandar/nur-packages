@@ -64,7 +64,9 @@ export def ci-prepare []: nothing -> nothing {
     if not ($"($root)/.jj" | path exists) { ^jj git init --colocate }
     ^jj config set --repo user.name ($env.NUR_CI_NAME? | default "nur-packages CI")
     ^jj config set --repo user.email ($env.NUR_CI_EMAIL? | default "ci@nur-packages.invalid")
-    ^jj bookmark track "*" --remote origin
+    # `<name>@origin`, not `--remote`: the flag exists only in newer jj.
+    let remote = ^git for-each-ref "--format=%(refname:lstrip=3)" refs/remotes/origin | lines | where {|b| $b != "HEAD" }
+    if ($remote | is-not-empty) { ^jj bookmark track ...($remote | each {|b| $"($b)@origin" }) }
     if (publishable) {
         let key = $"($env.HOME)/.ssh/nur-packages"
         mkdir ($key | path dirname)
