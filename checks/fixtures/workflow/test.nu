@@ -28,7 +28,7 @@ mkdir ($env.TEST_SOURCE | path join searchwala-calf)
 "lock" | save ($env.TEST_SOURCE | path join searchwala-calf Cargo.lock)
 mkdir nix/tamal pkgs/waterfox pkgs/searchwala-calf/crate
 '{"v":1,"i":{},"p":{}}' | save nix/tamal/lock.json
-"inputs {}\n" | save nix/tamal/manifest.kdl
+"inputs {\n\tsearchwala-calf {\n\t}\n}\n" | save nix/tamal/manifest.kdl
 "{}" | save pkgs/waterfox/lock.nix
 "{}" | save pkgs/searchwala-calf/lock.nix
 "lock" | save pkgs/searchwala-calf/crate/Cargo.lock
@@ -152,4 +152,25 @@ $env.TEST_PR = "denied"
 assert (try { github open-or-update branch main title body; false } catch { true })
 $env.TEST_PR = "success"
 assert equal (github open-or-update branch main title body) "https://github.com/example/test/pull/1"
+
+# A release must repair its tag before building the source used to regenerate Cargo.lock.
+^jj new main
+'{"v":1,"i":{"searchwala-calf":{"kd":[1,{}],"fv":"v2.0.0"}},"p":{}}' | save --force nix/tamal/lock.json
+'{ tag = "v1.0.0"; cargoHash = "unchanged"; }' | save --force pkgs/searchwala-calf/lock.nix
+^jj describe -m "searchwala-calf: 2.0.0"
+^jj bookmark set ci/release/searchwala-calf -r @
+^jj new main
+reset-log
+toolkit verify ci/release/searchwala-calf
+for target in [searchwala-calf searchwala-calf.tests.module cargo] {
+    assert equal (log | where $it == $target | length) 2
+}
+let lock = ^nix eval --json --file pkgs/searchwala-calf/lock.nix | from json
+assert equal $lock.tag v2.0.0
+assert equal $lock.cargoHash unchanged
+
+# Regenerating a nightly's Cargo.lock must preserve the release tag used in its version.
+open nix/tamal/lock.json | upsert i.searchwala-calf {kd: [0 {}], fv: nightly} | save --force nix/tamal/lock.json
+toolkit cargo-lock searchwala-calf
+assert equal (^nix eval --json --file pkgs/searchwala-calf/lock.nix | from json | get tag) v2.0.0
 print "workflow: all cases passed"

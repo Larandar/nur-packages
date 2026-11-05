@@ -741,6 +741,13 @@ export def cargo-lock [
     let packages = if ($packages | is-empty) { locked-crates } else { $packages }
     for package in $packages {
         let layout = lock-layout $package
+        # Building `.src` forces the release-tag guard before `check --fix` can repair it.
+        let file = $"pkgs/($package)/lock.nix"
+        let lock = read-lock $file
+        let input = open $"($root)/nix/tamal/lock.json" | get i | get --optional $package
+        if $input != null and $input.kd.0 == $archive_kind and $lock.tag? != $input.fv {
+            $lock | upsert tag $input.fv | save-lock $file
+        }
         let source = ^nix build --no-link --print-out-paths --file . $"($package).src" | str trim
         let work = mktemp --directory --tmpdir cargo-lock.XXXXXX
         try {
