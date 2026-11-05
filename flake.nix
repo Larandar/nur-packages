@@ -20,6 +20,7 @@
     # one matching its own nixpkgs, or imports <nur>/lib with its own pkgs.
     lib = forAllSystems (pkgs: import ./lib {inherit pkgs;});
     checks = forAllSystems (pkgs: {
+      ci-prepare = import ./checks/ci-prepare.nix {inherit pkgs;};
       aspects = import ./checks/aspects.nix {
         inherit pkgs;
         aspects = (import ./lib {inherit pkgs;}).aspects;

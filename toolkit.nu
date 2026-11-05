@@ -61,8 +61,8 @@ export def ci-prepare []: nothing -> nothing {
     let shallow = (^git rev-parse --is-shallow-repository | str trim) == "true"
     ^git fetch --tags ...(if $shallow { [--unshallow] } else { [] }) origin "+refs/heads/*:refs/remotes/origin/*"
     if not ($"($root)/.jj" | path exists) { ^jj git init --colocate }
-    ^jj config set --repo user.name ($env.NUR_CI_NAME? | default "nur-packages CI")
-    ^jj config set --repo user.email ($env.NUR_CI_EMAIL? | default "ci@nur-packages.invalid")
+    ^jj config set --repo user.name ($env.NUR_CI_NAME? | default "nur-packages CI" | to json --raw)
+    ^jj config set --repo user.email ($env.NUR_CI_EMAIL? | default "ci@nur-packages.invalid" | to json --raw)
     # `<name>@origin`, not `--remote`: the flag exists only in newer jj.
     let remote = ^git for-each-ref "--format=%(refname:lstrip=3)" refs/remotes/origin | lines | where {|b| $b != "HEAD" }
     if ($remote | is-not-empty) { ^jj bookmark track ...($remote | each {|b| $"($b)@origin" }) }
