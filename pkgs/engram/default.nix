@@ -9,7 +9,7 @@ buildGoModule (finalAttrs: {
   pname = "engram";
   inherit src version;
 
-  inherit (import ./lock.nix) vendorHash;
+  inherit (lib.importJSON ./lock.nuon) vendorHash;
 
   subPackages = ["cmd/engram"];
 
