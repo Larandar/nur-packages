@@ -27,10 +27,10 @@ $env.TEST_SOURCE = $env.HOME | path join source
 mkdir ($env.TEST_SOURCE | path join searchwala-calf)
 "lock" | save ($env.TEST_SOURCE | path join searchwala-calf Cargo.lock)
 mkdir nix/tamal pkgs/waterfox pkgs/searchwala-calf/crate
-'{"v":1,"i":{},"p":{}}' | save nix/tamal/lock.json
-"inputs {}\n" | save nix/tamal/manifest.kdl
+{v: 1, i: {searchwala-calf: {kd: [1 {}], fv: "v1"}}, p: {}} | to json | save nix/tamal/lock.json
+"inputs {\n\tsearchwala-calf {\n\t}\n}\n" | save nix/tamal/manifest.kdl
 "{}" | save pkgs/waterfox/lock.nix
-"{}" | save pkgs/searchwala-calf/lock.nix
+'{ tag = "v1"; }' | save pkgs/searchwala-calf/lock.nix
 "lock" | save pkgs/searchwala-calf/crate/Cargo.lock
 ^git init --initial-branch=main
 ^git -c user.name=test -c user.email=test@example.invalid add .
@@ -68,6 +68,20 @@ toolkit verify ci/update/nix-darwin
 for target in [waterfox waterfox.tests.module searchwala-calf searchwala-calf.tests.module cargo] {
     assert equal (log | where $it == $target | length) 2
 }
+
+# A release must repair its stale tag before building the source to regenerate Cargo.lock.
+^jj new main
+{v: 1, i: {searchwala-calf: {kd: [1 {}], fv: "v2"}}, p: {}} | to json | save --force nix/tamal/lock.json
+^jj describe -m "searchwala-calf: 2"
+^jj bookmark set ci/release/searchwala-calf -r @
+^jj new main
+reset-log
+toolkit verify ci/release/searchwala-calf
+for target in [source cargo searchwala-calf searchwala-calf.tests.module] {
+    assert equal (log | where $it == $target | length) 2
+}
+assert (open --raw pkgs/searchwala-calf/lock.nix | str contains 'tag = "v2"')
+assert equal (^git rev-parse searchwala-calf/releases/v2 | str trim) (commit main)
 
 # A candidate based on older main must not land when the combined tree fails.
 candidate

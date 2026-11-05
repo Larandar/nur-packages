@@ -2,6 +2,9 @@
 
 const root = path self | path dirname
 
+# nixtamal's lock encodes an input's kind as the first element of `kd`.
+const archive_kind = 1
+
 # Set by the `bash -c` that dumps the environment, not by the shell.
 const dump_artifacts = [_ SHLVL PWD OLDPWD]
 
@@ -274,6 +277,14 @@ export def verify [
 def check-candidate [job: record]: nothing -> nothing {
     let packages = affected $job
     let locked = $packages | where $it in (locked-crates)
+    # cargo-lock builds .src, so its release tag must already match the pin before check --fix runs.
+    for package in $locked {
+        let file = $"pkgs/($package)/lock.nix"
+        let input = open $"($root)/nix/tamal/lock.json" | get i | get --optional $package
+        if $input != null and $input.kd.0 == $archive_kind {
+            read-lock $file | upsert tag $input.fv | save-lock $file
+        }
+    }
     if ($locked | is-not-empty) { cargo-lock ...$locked }
     if ($packages | is-not-empty) { check --fix ...$packages }
 }
@@ -387,9 +398,6 @@ def tag-plugin [plugin: string]: nothing -> list<string> {
     print $"($plugin): ($version) stable at ($commit | str substring 0..11)"
     [$"($plugin)/stable" $"($plugin)/releases/($version)"]
 }
-
-# nixtamal's lock encodes an input's kind as the first element of `kd`.
-const archive_kind = 1
 
 def pinned [input: string]: nothing -> record {
     open $"($root)/nix/tamal/lock.json" | get i | get $input
