@@ -80,5 +80,18 @@ overlay use --prefix toolkit.nu
 toolkit update  # refresh every pin
 ```
 
+GitHub's Update workflow uses `GITHUB_TOKEN` to publish candidates and land
+verified updates. Enable **Settings → Actions → General → Workflow permissions
+→ Allow GitHub Actions to create and approve pull requests** to also create
+its tracking pull requests; an organization policy may require an administrator
+to enable it. When that specific policy blocks creation, the workflow warns
+and continues verification without a pull request. Other publishing errors
+still fail the job.
+
+Updates to Home Manager and nix-darwin check the packages whose module tests
+consume those inputs. Before landing, each candidate is checked again on the
+current `main`, including after a concurrent landing forces a retry; a failed
+combined check leaves `main` unchanged.
+
 CI builds every package except those marked `meta.broken`, unfree, or
 `preferLocalBuild`; the last are built but not cached.
