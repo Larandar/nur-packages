@@ -52,11 +52,10 @@ export alias load-shell = do --env {|...packages: string|
   with-nix-shell $"($root)#default.devShell" ...($packages | each {|package| $"($root)#($package).devShell" })
 }
 
-use nix/tangled.nu
+use nix/github.nu
 
 # Make a CI checkout able to plan, verify and publish: full history, branches and tags from `origin`, a colocated jj
-# repository tracking them, and a CI identity. With the `NUR_SSH_KEY` secret, also install the key and push to
-# `NUR_PUSH_URL`.
+# repository tracking them, and a CI identity. The checkout's token pushes.
 export def ci-prepare []: nothing -> nothing {
     cd $root
     let shallow = (^git rev-parse --is-shallow-repository | str trim) == "true"
@@ -67,25 +66,28 @@ export def ci-prepare []: nothing -> nothing {
     # `<name>@origin`, not `--remote`: the flag exists only in newer jj.
     let remote = ^git for-each-ref "--format=%(refname:lstrip=3)" refs/remotes/origin | lines | where {|b| $b != "HEAD" }
     if ($remote | is-not-empty) { ^jj bookmark track ...($remote | each {|b| $"($b)@origin" }) }
-    if (publishable) {
-        let key = $"($env.HOME)/.ssh/nur-packages"
-        mkdir ($key | path dirname)
-        $"($env.NUR_SSH_KEY | str trim)\n" | save --force $key
-        ^chmod 600 $key
-        ^git config core.sshCommand $"ssh -i ($key) -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
-        ^git remote set-url --push origin $env.NUR_PUSH_URL
-    }
     ^jj new main
 }
 
-# Publishing needs the `NUR_SSH_KEY` secret; without it, `--publish` runs stay local.
+# Publishing needs `GH_TOKEN`, a token that may push and open pull requests; without it, `--publish` runs stay local.
 def publishable []: nothing -> bool {
-    ($env.NUR_SSH_KEY? | default "" | str trim) != ""
+    ($env.GH_TOKEN? | default "" | str trim) != ""
 }
 
 def publishing [requested: bool]: nothing -> bool {
-    if $requested and not (publishable) { print "NUR_SSH_KEY is not set: building locally, publishing nothing." }
+    if $requested and not (publishable) { print "GH_TOKEN is not set: building locally, publishing nothing." }
     $requested and (publishable)
+}
+
+# Open a pull request from the pushed `branch` into `main`, or bring the open one up to date.
+def open-pull [branch: string, title: string, body: string]: nothing -> nothing {
+    github open-or-update $branch main $title $body | ignore
+}
+
+# Close the open pull requests from each branch into `main` as landed there.
+def settle-pulls [...branches: string]: nothing -> nothing {
+    let commit = commit-of main
+    for branch in $branches { github settle $branch main $commit }
 }
 
 # The work the pins call for, found without building: `release` (a release package's upstream tagged a newer
@@ -161,7 +163,7 @@ export def plan [
                 ^git push --force origin $"refs/heads/($candidate):refs/heads/($candidate)"
                 if $job.kind != nightly {
                     let message = ^jj log --no-graph --revisions $candidate --template description | str trim
-                    tangled open-or-update (tangled session) $env.NUR_REPO_DID $candidate main ($message | lines | first) $message | ignore
+                    open-pull $candidate ($message | lines | first) $message
                 }
             }
         }
@@ -291,7 +293,7 @@ def advance-nightly [package: string, candidate: string, publish: bool]: nothing
     print $"($branch): (^jj log --no-graph --revisions $branch --template 'description.first_line()')"
     if $publish {
         ^git push origin $"refs/heads/($branch):refs/heads/($branch)"
-        tangled open-or-update (tangled session) $env.NUR_REPO_DID $branch main $"($package): nightly" "Upstream's default branch, built, tested and repaired; it lands with the next release." | ignore
+        open-pull $branch $"($package): nightly" "Upstream's default branch, built, tested and repaired; it lands with the next release."
     }
 }
 
@@ -354,9 +356,7 @@ def land [job: record, candidate: string, publish: bool]: nothing -> nothing {
     print $"main: ($message | lines | first)"
     if $publish {
         for tag in $tags { ^git push --force origin $"refs/tags/($tag)" }
-        let session = tangled session
-        tangled settle $session $env.NUR_REPO_DID $candidate
-        if $job.kind == release { tangled settle $session $env.NUR_REPO_DID $"($job.name)/nightly" }
+        settle-pulls $candidate ...(if $job.kind == release { [$"($job.name)/nightly"] } else { [] })
     }
 }
 

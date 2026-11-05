@@ -125,31 +125,32 @@ of its prefetchers and the caller's PATH, such as `[nushell]`.
 
 ## CI
 
-Spindle runs `.tangled/workflows/`, building through the host's Nix daemon
-(`NIX_REMOTE=daemon`): outputs land in the host store, which owns caching.
+GitHub Actions runs the updating flow, `.github/workflows/update.yml`, on
+GitHub's copy of the repository; `.github/actions/setup` installs Nix, takes jj
+and Nushell from the pinned nixpkgs, and runs `toolkit ci-prepare`.
 
-- `plan.yml`, scheduled: `toolkit plan --publish` finds the jobs
-  (`toolkit jobs`: new upstream releases, moved nightlies, stale inputs `main`
-  owns) and pushes one candidate branch `ci/<kind>/<name>` per job, with
-  nothing built. Release and update candidates get a pull request into `main`.
-- `verify.yml`, on each candidate push: `toolkit verify --publish` builds,
+- `plan`, scheduled (or by hand, for one `kind`): `toolkit plan --publish`
+  finds the jobs (`toolkit jobs`: new upstream releases, moved nightlies, stale
+  inputs `main` owns) and pushes one candidate branch `ci/<kind>/<name>` per
+  job, with nothing built. Release and update candidates get a pull request
+  into `main`.
+- `verify`, one matrix run per candidate: `toolkit verify --publish` builds,
   tests and repairs the candidate, then advances `<pkg>/nightly` (updating its
-  pull request) or lands the release or update on `main`, tags it, and records
-  its pull requests as merged. An update whose pin does not build is not
-  landed, so `main` keeps its last good pin. The next nightly after a release
-  opens a new pull request.
-- `check.yml`: `toolkit check` on pull requests from people.
+  pull request) or lands the release or update on `main`, tags it, and closes
+  its pull requests, naming the landed commit (`nix/github.nu`): a landing is
+  curated, not merged. An update whose pin does not build is not landed, so
+  `main` keeps its last good pin. The next nightly after a release opens a new
+  pull request.
 
-iets keeps its cache on the host through `IETS_CACHE_DIR`: `plan.yml` and
-`verify.yml` share `/var/cache/iets/trusted`, and `check.yml` uses
-`/var/cache/iets/unknown`, for code of unknown origin. A cache entry answers
-an evaluation, so the workflows that hold the publishing secrets never read
-one a pull request wrote.
+Pushes made with the workflow token start no workflow, so `verify` follows
+`plan` in the same run instead of on a push event. Publishing uses that token
+(`GH_TOKEN`, with `contents` and `pull-requests` write); without it,
+`--publish` runs build and publish nothing. iets's cache (`IETS_CACHE_DIR`)
+lives in the run's temporary directory.
 
-Publishing needs two spindle secrets: `NUR_SSH_KEY`, the private half of a key
-registered on the account, for pushes; and `NUR_APP_PASSWORD`, an ATProto app
-password, for the pull request records (`nix/tangled.nu`). Without
-`NUR_SSH_KEY`, `--publish` runs build and publish nothing.
+Spindle still runs `.tangled/workflows/check.yml`: `toolkit check` on pull
+requests from people, through the host's Nix daemon (`NIX_REMOTE=daemon`), with
+iets's cache in `/var/cache/iets/unknown`, for code of unknown origin.
 
 ## Commands
 
