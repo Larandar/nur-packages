@@ -554,9 +554,11 @@ def targets [attribute: string]: nothing -> list<string> {
 
 # The attribute paths of a package's `passthru.tests`, if it has any.
 def test-attributes [attribute: string]: nothing -> list<string> {
-    let apply = 't: builtins.filter (n: (t.${n}.type or null) == "derivation") (builtins.attrNames t)'
-    let names = ^nix eval --json --file . $"($attribute).tests" --apply $apply | complete
-    if $names.exit_code != 0 { return [] }
+    let apply = 'p: let t = p.tests or {}; in builtins.filter (n: (t.${n}.type or null) == "derivation") (builtins.attrNames t)'
+    let names = ^nix eval --json --file . $attribute --apply $apply | complete
+    if $names.exit_code != 0 {
+        error make {msg: $"($attribute): test discovery failed: ($names.stderr | str trim)"}
+    }
     $names.stdout | from json | each {|name| $"($attribute).tests.($name)" }
 }
 

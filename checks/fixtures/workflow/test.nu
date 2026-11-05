@@ -48,6 +48,15 @@ toolkit verify ci/update/home-manager
 assert equal (log | where $it == waterfox | length) 2
 assert equal (log | where $it == waterfox.tests.module | length) 2
 
+# Packages without passthru.tests still validate their builds normally.
+candidate
+$env.TEST_NO_TESTS = true
+reset-log
+toolkit verify ci/update/home-manager
+assert equal (log | where $it == waterfox | length) 2
+assert equal (log | where $it == waterfox.tests.module | length) 0
+$env.TEST_NO_TESTS = false
+
 # nix-darwin also validates SearchWala, regenerating its Cargo lock in both trees.
 ^jj new main
 "darwin" | save --force candidate.txt
@@ -76,6 +85,27 @@ assert equal (commit main) $newer
 assert equal (^jj bookmark list ci/update/home-manager -T name | str trim) ci/update/home-manager
 assert equal (log | where $it == waterfox | length) 2
 assert equal (log | where $it == push | length) 0
+
+# Module evaluation failure during discovery must also block the combined landing.
+$env.TEST_FAIL = false
+$env.TEST_DISCOVERY_FAIL = true
+reset-log
+assert (try { toolkit verify ci/update/home-manager; false } catch { true })
+assert equal (commit main) $newer
+assert equal (log | where $it == waterfox | length) 2
+assert equal (log | where $it == push | length) 0
+
+# A discovery failure on the candidate itself must fail before any landing.
+^jj new main
+"discovery" | save --force candidate.txt
+^jj describe -m "Update home-manager"
+^jj bookmark set ci/update/home-manager -r @ --allow-backwards
+^jj new main
+reset-log
+assert (try { toolkit verify ci/update/home-manager; false } catch { true })
+assert equal (commit main) $newer
+assert equal (log | where $it == waterfox | length) 1
+$env.TEST_DISCOVERY_FAIL = false
 
 # Simulate a rejected push and fetch of a newer main, without any network writes.
 $env.TEST_FAIL = false

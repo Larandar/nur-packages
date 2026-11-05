@@ -6,8 +6,12 @@ def --wrapped main [tool: string, ...args: string] {
                 build => { print $env.TEST_SOURCE }
                 shell => { "cargo\n" | save --append $env.TEST_LOG }
                 eval => {
-                    if ($args | any {|arg| $arg ends-with ".tests" }) {
-                        print '["module"]'
+                    if ($args | last | str contains "p.tests or {}") {
+                        if ($env.TEST_DISCOVERY_FAIL? | default false | into bool) and ("concurrent.txt" | path exists) {
+                            print --stderr "module evaluation failed"
+                            exit 1
+                        }
+                        print (if ($env.TEST_NO_TESTS? | default false | into bool) { "[]" } else { '["module"]' })
                     } else if "--apply" in $args {
                         print "[]"
                     } else {
