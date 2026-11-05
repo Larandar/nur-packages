@@ -117,6 +117,7 @@ async fn search(headers: HeaderMap, Query(q): Query<SearchQuery>) -> Response {
         // environment means `None`, never a default model.
         llm: llm_from_env(),
         enable_copilot: false,
+        ..Default::default()
     };
 
     let (lines, rx) = mpsc::channel::<Result<String, Infallible>>(64);
@@ -125,7 +126,14 @@ async fn search(headers: HeaderMap, Query(q): Query<SearchQuery>) -> Response {
             let (progress, mut stages) = mpsc::channel::<Progress>(32);
             let pipeline = tokio::spawn(
                 async move {
-                    let response = execute_search_full(params, None, None, Some(progress)).await;
+                    let response = execute_search_full(
+                        params,
+                        None,
+                        #[cfg(searchwala_history_db)]
+                        None,
+                        Some(progress),
+                    )
+                    .await;
                     tracing::info!(
                         sources_found = response.sources_found,
                         elapsed = response.elapsed_seconds,
@@ -173,29 +181,33 @@ fn ndjson(value: &impl serde::Serialize) -> String {
 /// own gateway (`modron.vegr`). Absent → `None` → upstream's no-LLM path,
 /// whose highlight answer is verbatim quotation and cannot hallucinate.
 fn llm_from_env() -> Option<searchwala::models::LlmConfig> {
+    llm_config_from(|name| std::env::var(name).ok())
+}
+
+fn llm_config_from(
+    mut env: impl FnMut(&str) -> Option<String>,
+) -> Option<searchwala::models::LlmConfig> {
     let (provider, model, api_key) = match (
-        std::env::var("CALF_LLM_PROVIDER"),
-        std::env::var("CALF_LLM_MODEL"),
-        std::env::var("CALF_LLM_API_KEY"),
+        env("CALF_LLM_PROVIDER"),
+        env("CALF_LLM_MODEL"),
+        env("CALF_LLM_API_KEY"),
     ) {
-        (Ok(p), Ok(m), Ok(k)) if !p.is_empty() && !m.is_empty() && !k.is_empty() => (p, m, k),
+        (Some(p), Some(m), Some(k)) if !p.is_empty() && !m.is_empty() && !k.is_empty() => (p, m, k),
         _ => return None,
     };
 
-    Some(searchwala::models::LlmConfig {
-        provider,
-        api_key,
-        model,
-        base_url: std::env::var("CALF_LLM_BASE_URL")
-            .ok()
-            .filter(|s| !s.is_empty()),
-        timeout_ms: std::env::var("CALF_LLM_TIMEOUT_MS")
-            .ok()
-            .and_then(|v| v.parse().ok()),
-        max_output_tokens: std::env::var("CALF_LLM_MAX_OUTPUT_TOKENS")
-            .ok()
-            .and_then(|v| v.parse().ok()),
-    })
+    // Deserialize through upstream's public request schema so new optional
+    // fields (such as context_window) retain their upstream defaults.
+    serde_json::from_value(serde_json::json!({
+        "provider": provider,
+        "api_key": api_key,
+        "model": model,
+        "base_url": env("CALF_LLM_BASE_URL").filter(|s| !s.is_empty()),
+        "timeout_ms": env("CALF_LLM_TIMEOUT_MS").and_then(|v| v.parse::<u64>().ok()),
+        "max_output_tokens": env("CALF_LLM_MAX_OUTPUT_TOKENS")
+            .and_then(|v| v.parse::<usize>().ok()),
+    }))
+    .ok()
 }
 
 async fn health() -> &'static str {
@@ -331,5 +343,74 @@ async fn main() -> Result<()> {
     match args.socket {
         Some(path) if !path.is_empty() => serve_uds(path).await,
         _ => serve_tcp(args.host, args.port).await,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn configured(extra: &[(&str, &str)]) -> searchwala::models::LlmConfig {
+        let mut values = std::collections::HashMap::from([
+            ("CALF_LLM_PROVIDER", "openai"),
+            ("CALF_LLM_MODEL", "test-model"),
+            ("CALF_LLM_API_KEY", "test-key"),
+        ]);
+        values.extend(extra.iter().copied());
+        llm_config_from(|name| values.get(name).map(|value| (*value).to_owned())).unwrap()
+    }
+
+    #[test]
+    fn llm_requires_all_credentials() {
+        for missing in ["CALF_LLM_PROVIDER", "CALF_LLM_MODEL", "CALF_LLM_API_KEY"] {
+            for absent in [None, Some(String::new())] {
+                assert!(llm_config_from(|name| {
+                    if name == missing {
+                        absent.clone()
+                    } else {
+                        Some("configured".into())
+                    }
+                })
+                .is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn llm_optional_fields_default_to_none() {
+        let config = configured(&[]);
+        assert_eq!(config.provider, "openai");
+        assert_eq!(config.model, "test-model");
+        assert_eq!(config.api_key, "test-key");
+        assert_eq!(config.base_url, None);
+        assert_eq!(config.timeout_ms, None);
+        assert_eq!(config.max_output_tokens, None);
+    }
+
+    #[test]
+    fn llm_optional_fields_are_preserved() {
+        let config = configured(&[
+            ("CALF_LLM_BASE_URL", "https://gateway.example/v1"),
+            ("CALF_LLM_TIMEOUT_MS", "5000"),
+            ("CALF_LLM_MAX_OUTPUT_TOKENS", "256"),
+        ]);
+        assert_eq!(
+            config.base_url.as_deref(),
+            Some("https://gateway.example/v1")
+        );
+        assert_eq!(config.timeout_ms, Some(5000));
+        assert_eq!(config.max_output_tokens, Some(256));
+    }
+
+    #[test]
+    fn llm_invalid_optional_fields_are_ignored() {
+        let config = configured(&[
+            ("CALF_LLM_BASE_URL", ""),
+            ("CALF_LLM_TIMEOUT_MS", "-1"),
+            ("CALF_LLM_MAX_OUTPUT_TOKENS", "invalid"),
+        ]);
+        assert_eq!(config.base_url, None);
+        assert_eq!(config.timeout_ms, None);
+        assert_eq!(config.max_output_tokens, None);
     }
 }

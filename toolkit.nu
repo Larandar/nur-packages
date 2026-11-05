@@ -276,6 +276,7 @@ export def verify [
 
 def check-candidate [job: record]: nothing -> nothing {
     let packages = affected $job
+    for package in $packages { migrate-lock $package }
     let locked = $packages | where $it in (locked-crates)
     # cargo-lock builds .src, so its release tag must already match the pin before check --fix runs.
     for package in $locked {
@@ -404,7 +405,8 @@ def pinned [input: string]: nothing -> record {
 }
 
 def lock-packages []: nothing -> list<string> {
-    glob $"($root)/pkgs/*/lock.nix" | each { path dirname | path basename } | sort
+    (glob $"($root)/pkgs/*/lock.nix") ++ (glob $"($root)/pkgs/*/lock.nuon")
+    | each { path dirname | path basename } | uniq | sort
 }
 
 # Nushell plugins: packages whose directory carries the Cargo.lock `toolkit cargo-lock` generates.
@@ -445,6 +447,20 @@ def save-lock [file: path]: record -> nothing {
     $"($lock_header)\n($body)\n" | save --force $file
 }
 
+# Older nightlies can restore the JSON lock and its consumer when their package directory is transplanted.
+def migrate-lock [package: string]: nothing -> nothing {
+    let directory = $"($root)/pkgs/($package)"
+    let legacy = $directory | path join lock.nuon
+    if not ($legacy | path exists) { return }
+    let file = $directory | path join lock.nix
+    open --raw $legacy | from nuon | merge (read-lock $file) | save-lock $file
+    let expression = $directory | path join default.nix
+    open --raw $expression
+    | str replace --all 'lib.importJSON ./lock.nuon' 'import ./lock.nix'
+    | save --force $expression
+    rm $legacy
+}
+
 const fake_hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 
 # Build `attribute` with iets through the host's Nix daemon. With `--fix`, iets rewrites a fixed-output hash that
@@ -452,7 +468,9 @@ const fake_hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 # pure evaluation lacks, so the evaluation is impure, as `nix build --file` is.
 def iets-build [attribute: string, --fix]: nothing -> record {
     let mode = if $fix { "always" } else { "never" }
-    ^iets --iets-option fix-hashes $mode build --impure --builder daemon --file $root -A $attribute | complete
+    let result = ^iets --iets-option fix-hashes $mode build --impure --builder daemon --file $root -A $attribute | complete
+    if $result.exit_code != 0 { print --stderr $result.stderr }
+    $result
 }
 
 # Recompute each package's `lock.nix` from scratch: per key, set a fake hash and let iets write the one the build
@@ -465,6 +483,7 @@ export def hashes [
     load-shell
     let packages = if ($packages | is-empty) { lock-packages } else { $packages }
     for package in $packages {
+        migrate-lock $package
         let file = $"pkgs/($package)/lock.nix"
         let input = pinned $package
         if $input.kd.0 == $archive_kind {
@@ -506,6 +525,7 @@ export def check [
 }
 
 def check-package [package: string, fix: bool]: nothing -> record {
+    if $fix { migrate-lock $package }
     let file = $"pkgs/($package)/lock.nix"
     let before = read-lock $file
     # An attribute that is not itself an input, such as `default`, has no tag to check.
