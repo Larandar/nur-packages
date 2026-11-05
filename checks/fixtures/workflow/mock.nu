@@ -3,7 +3,17 @@ def --wrapped main [tool: string, ...args: string] {
         nix => {
             match $args.0 {
                 develop => { ^bash -c 'env -u FILE_PWD -u CURRENT_FILE -0 > "$0"' ($args | last) }
-                build => { print $env.TEST_SOURCE }
+                build => {
+                    if ($args | last) == "searchwala-calf.src" {
+                        let input = open nix/tamal/lock.json | get i | get --optional searchwala-calf
+                        let tag = open --raw pkgs/searchwala-calf/lock.nix | parse --regex 'tag = "(?<tag>[^"]+)"' | get --optional 0.tag
+                        if $input != null and $input.kd.0 == 1 and $tag != $input.fv {
+                            print --stderr "searchwala-calf: stale release tag"
+                            exit 1
+                        }
+                    }
+                    print $env.TEST_SOURCE
+                }
                 shell => { "cargo\n" | save --append $env.TEST_LOG }
                 eval => {
                     if ($args | last | str contains "p.tests or {}") {
@@ -14,6 +24,12 @@ def --wrapped main [tool: string, ...args: string] {
                         print (if ($env.TEST_NO_TESTS? | default false | into bool) { "[]" } else { '["module"]' })
                     } else if "--apply" in $args {
                         print "[]"
+                    } else if ($args | last | str ends-with "/lock.nix") {
+                        open --raw ($args | last)
+                        | parse --regex '(?<key>\w+) = "(?<value>[^"]+)"'
+                        | reduce --fold {} {|entry, lock| $lock | insert $entry.key $entry.value }
+                        | to json --raw
+                        | print
                     } else {
                         print "{}"
                     }
