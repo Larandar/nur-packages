@@ -258,10 +258,7 @@ export def verify [
     for candidate in $candidates {
         let job = $candidate | parse 'ci/{kind}/{name}' | first
         ^jj new $candidate
-        let packages = affected $job
-        let locked = $packages | where $it in (locked-crates)
-        if ($locked | is-not-empty) { cargo-lock ...$locked }
-        if ($packages | is-not-empty) { check --fix ...$packages }
+        check-candidate $job
         ^jj squash
         if $job.kind == nightly {
             advance-nightly $job.name $candidate $publish
@@ -274,6 +271,13 @@ export def verify [
     }
 }
 
+def check-candidate [job: record]: nothing -> nothing {
+    let packages = affected $job
+    let locked = $packages | where $it in (locked-crates)
+    if ($locked | is-not-empty) { cargo-lock ...$locked }
+    if ($packages | is-not-empty) { check --fix ...$packages }
+}
+
 # The packages a job's candidate must build: the package itself, or for an update the package its input feeds, and
 # every package when nixpkgs moves.
 def affected [job: record]: nothing -> list<string> {
@@ -283,6 +287,8 @@ def affected [job: record]: nothing -> list<string> {
     if $job.name == nixtamal { return [nixtamal default] }
     # iets, which `check` builds with, is repository tooling too.
     if $job.name == iets { return [default] }
+    if $job.name == home-manager { return [waterfox] }
+    if $job.name == nix-darwin { return [waterfox searchwala-calf] }
     let attributes = ^nix eval --json --impure --expr "builtins.attrNames (import ./. {})" | from json
     if $job.name in $attributes { [$job.name] } else { [] }
 }
@@ -326,19 +332,30 @@ def land [job: record, candidate: string, publish: bool]: nothing -> nothing {
     let message = ^jj log --no-graph --revisions $candidate --template description | str trim
     mut attempts = 0
     loop {
+        let previous = commit-of main
         let base = commit-of $"fork_point\(main | ($candidate)\)"
         ^jj new main
-        apply-changes $candidate $base
-        ^jj describe --message $message
+        try {
+            apply-changes $candidate $base
+            check-candidate $job
+            ^jj describe --message $message
+        } catch {|err|
+            ^jj abandon @
+            error make {msg: $"($candidate): landing validation failed: ($err.msg)"}
+        }
         ^jj bookmark set main --revision @
         if not $publish { break }
         let pushed = ^git push origin "refs/heads/main:refs/heads/main" | complete
         if $pushed.exit_code == 0 { break }
         # Another candidate landed first: land again on top of it.
         $attempts += 1
-        if $attempts >= 3 { error make {msg: $"($candidate): main kept moving; ($pushed.stderr | str trim)"} }
+        ^jj bookmark set main --revision $previous --allow-backwards
         ^jj abandon @
+        if $attempts >= 3 { error make {msg: $"($candidate): main kept moving; ($pushed.stderr | str trim)"} }
         ^git fetch origin main
+        if (commit-of "main@origin") == $previous {
+            error make {msg: $"($candidate): push failed without main moving; ($pushed.stderr | str trim)"}
+        }
         ^jj bookmark set main --revision "main@origin" --allow-backwards
     }
     let tags = match $job.kind {

@@ -10,7 +10,15 @@ def open-pulls [branch: string, target: string]: nothing -> list<int> {
 export def open-or-update [branch: string, target: string, title: string, body: string]: nothing -> string {
     let existing = open-pulls $branch $target
     if ($existing | is-empty) {
-        ^gh pr create --head $branch --base $target --title $title --body $body | str trim
+        let created = ^gh pr create --head $branch --base $target --title $title --body $body | complete
+        if $created.exit_code != 0 {
+            if ($created.stderr | str contains "GitHub Actions is not permitted to create or approve pull requests") {
+                print --stderr $"Warning: ($branch) was pushed without a pull request. Enable Settings > Actions > General > Workflow permissions > Allow GitHub Actions to create and approve pull requests. Verification will continue."
+                return ""
+            }
+            error make {msg: $"Failed to create pull request for ($branch): ($created.stderr | str trim)"}
+        }
+        $created.stdout | str trim
     } else {
         let number = $existing | last
         ^gh pr edit $number --title $title --body $body | ignore
