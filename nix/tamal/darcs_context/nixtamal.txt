@@ -2,28 +2,241 @@
 Context:
 
 
-[use __functor to point to Nixtamal, the installable
-·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261024162640
- Ignore-this: 76d8293a306e5a744edf4ba129c4ef5d7b1f71d8d93f6d9c54e9fa47438fb8d54595f61fb6438f8d
+[add the ≥ 64-flag for withTUI
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261106170258
+ Ignore-this: 406a9cb28292dde1c59202e9be89bba5ccd4f8fa6c7ea9b65686c06bda2ca8a142f273eca769af69
+ 
+ will be used later
 ] 
 
-[TAG 2.3.0
-·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261024112634
- Ignore-this: 5ddcdb4ae7e3aa668981e3d1d284700e9c62e059809322f6ae167de8cbb766812036ff9c5ab8e006
+[more attributes
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261105143250
+ Ignore-this: 9f9fef8d86f406da65830b9ea94c205c2b35bee382391dfa3b6663867c48989124c0b17d8c21b231
+] 
+
+[nixtamal refresh
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261105140412
+ Ignore-this: 7f779bc15824bfbc23ec1323587e3ce9c12e4afe79043c537011ec0c27f55593a2d9f02c836deb9e
+] 
+
+[nixtamal refresh
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104182849
+ Ignore-this: 325928c913256a803376291735f71437b3914ab0295a3ef09c50d8e1c2a3e5fd8e7a72c5df035d4e
+] 
+
+[attempt to rereckon moved silos
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104182502
+ Ignore-this: 50e2a6e4b17c62f306c8aa0bfc3e6bc632c42e253c430555bd455e2ab4c781d193de24af8e5278b2
+] 
+
+[tweak CHANGELOG for 3.0.0
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104125351
+ Ignore-this: 62a9aa383b00c4c0aea8d5270c0b33a006b23476b46c54911dd1d00f6b408d750b5ded37e2a5229f
+] 
+
+[add youthlic
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104125238
+ Ignore-this: 778339db925e7d87c7ab621e6c02bebdc2c235af859202599bef7f5c7ff5c3fed6537a122a0f3679
+] 
+
+[replace how gc roots are created with an atomic swap
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104124820
+ Ignore-this: a430f5a3f77c67f6cddbb56e7e4d2839d2607a2c5fdc2d1d9b562be2e9546e6e110f57024ce44b3
+] 
+
+[validate silo name
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104124732
+ Ignore-this: 63b24451c3749815e1e53797736e1226552a563724bb7303e4717f08bab4c819d661c94c8cc7f69b
+] 
+
+[add silo error type
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104124105
+ Ignore-this: 7eefbff4b9dc2dd86da8fabc686feba96c356753c1adbf5ac2bf03183fb72f900e190efdc44c4090
+] 
+
+[validate that the gc gen integer is positive
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104123948
+ Ignore-this: ed1fc82a793c61067f4ffda9c59c738b1271f69d64e5827eeedddda7842379c474bfeee5cf763792
  
- • BREAKING: set-up --use-mirrors replaces set-up
-   --use-nixpkgs-git-mirrors; the environment variable is now
-   NIXTAMAL_USE_MIRRORS
- • Nixpkgs channel inputs use the versioned channel archive as the
-   primary source; --use-mirrors adds the TUNA release mirror as a
-   fallback
- • set-up --use-mirrors with no Nixpkgs reference or with
-   --nixpkgs-channel uses the channel archive + TUNA mirror.
-   --nixpkgs-ref always keeps the Git path with the known TUNA Git
-   mirror; without either flag still (for now) will default to the
-   archive @ https://github.com in order to have an example to copy+build
-   off of for the newest of comers
- • Now that the version channels are parsed into a datatype, channel
-   archives prefer Zstandard (.zst) with soon-to-be-deprecated LZMA (.xz)
-   fallback for stable major versions (year) < 26 for compatibility
+ 0 or natural
+] 
+
+[pure GC cuttoff
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104123109
+ Ignore-this: 412a095457657398d36e256e05e7a684ce4e3714d281c85b48fdbdfa21397f8d0aba39f51f7d57e0
+] 
+
+[log + fmt issue
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104092932
+ Ignore-this: 4cd6c60e7505ab070d3301e3f03eb555d30c5247cdd811fbe39d458cabe6b0f27fee2d8ae61eba43
+] 
+
+[nixtamal upgrade
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104071625
+ Ignore-this: de8d6799643473551eaff0131ae4b9854e90dd61f0b5746cad40572577bce2e0120f0cd0699f2f1a
+] 
+
+[fixup lock loader newlines
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104071323
+ Ignore-this: ee9d4fc097632dfd7a7bfcef028dcd74570c7e469eec3039e25369e06ad5007336868b87aaffefdc
+] 
+
+[allow skipping upgrade just to tweak
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104063319
+ Ignore-this: d1d65cb570b57fbfec1573f9568f0093f81f05d4b0c01001834425934255af998039e7673dd0be6b
+] 
+
+[tweak it
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104063308
+ Ignore-this: 4495f9ea77977dfb2d294a88ab8b3d358dcc0eeaf8419bc2bcdfcd3a5fc53e6e97e0ac56a22aebd0
+] 
+
+[normalize jsont naming scheme & be a bit more lax on loading codecs
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104062649
+ Ignore-this: a5ed89f2af99e29c772a894446ae96e24fef6a916da481de25748cd2bc4e2a65e8c959cbcc068a71
+] 
+
+[fix renaming bug
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104060935
+ Ignore-this: 47d080f2dd62b1a3386cd2a25e0187f456a9fd5958f0a7f7afc9b2906d017cbb8bea6b31a5de80ea
+] 
+
+[better handle backup files + rollback
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104060654
+ Ignore-this: 8348a9f76b90a033176deabc7798eba1a9723e15803bc1f88345a408a1eb343fb0760a9d3bf1f3e8
+] 
+
+[extra logs
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104060625
+ Ignore-this: 33b072d9981980c9747fd66c17fa52a49356e6771a4e22bb7ae60f49db2574fc6c904ade00a4f9c5
+] 
+
+[new JSON keys for lock loader
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104052532
+ Ignore-this: 4528070932d4c71f24aa4e9c42e39df33c0fb9e73a5fb85cbfdb68185a501bb5f41fc82a47260b78
+] 
+
+[guard against empty inputs ± patches states
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104050236
+ Ignore-this: a20602dde3dae22bebbe3722522548d62d684aba5d42004aa3059631de61a93199ad2768a72191f7
+] 
+
+[version: 2.4.0 → 3.0.0
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104043407
+ Ignore-this: 141d6e39221570f14d3726c4ab7442ffd6b3922184437cc22e14f87ca97e7ded4afbcbc1eaf3e73c
+] 
+
+[add --auto-upgrade flag
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104043034
+ Ignore-this: 526724971e370301da868736e5b468192c887973689f066b8917c391bdc9fd929163464b877f616e
+] 
+
+[remove unneeded space
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104041253
+ Ignore-this: 52818d4cf01f52d846c96f2e5e546013f1030517451dff20e6b23ea80522002b1bcd4d2c43b9bb11
+] 
+
+[fixup indentation errors
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104041112
+ Ignore-this: 4e13778892bdef4e09fbc3171fe6f816ada35a1896c9f95769bcf14fe9d9c5c20819e01d011ab632
+] 
+
+[make lockfile upgrade API look more like the new manifest one
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104040836
+ Ignore-this: 5431cec71e24c48485edf3c066fcfc76bd824b2381b14a00734866d2350e02078b7d8b565b959e4c
+] 
+
+[log a warning about the manifest 2.0.0 breaking change
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104040343
+ Ignore-this: 5314d5f05052e80605511b2d18038248353ae5cdcd0dd1db87e8bdbd89071a4013cc684bc2744e0e
+] 
+
+[nixtamal refresh
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261104033438
+ Ignore-this: 4029486e1b152d1270587b50cbaf637646a33eb77c3a0a44f12783c5362cacea8ccadd9d7dac58ce
+] 
+
+[Update manifest docs
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261103081755
+ Ignore-this: d393265cdc5b17b928f3b09083580785e29c2e612e1fc1e3638e38eeeacaffab01e612ce860ca4ed
+] 
+
+[manifest updates + fixes
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261103081743
+ Ignore-this: cf2d17081dcc84aef6361d67edf9f8b79f0937fd3d0497b47b9c39743efc4e4d532cdec28b14a5a3
+] 
+
+[clean up tests
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261103070024
+ Ignore-this: a35bfbff481fca527c90063863d82371b1481ff511d26c4ef12ca99dae5987b764add955a49f7f52
+] 
+
+[phantom type for templates + related reorganization
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261103065017
+ Ignore-this: fc78f09aa39fe822c0b0adf238157e27d8c053c2a77095a4b8c27ab29fb21a2abf9ff22761d025f6
+] 
+
+[nixtamal refresh
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261103054649
+ Ignore-this: f2daa9b4c80720972082ea2e82721b6193d6d9a2e069ed81106037eb11513a9dc38ddcc888134f0e
+] 
+
+[handle the attribute templating
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261102185259
+ Ignore-this: cf9640ed7e172a3c5db31f1c18e3e3072dd1c1480d02db98fc3669007cd909785bf80fc7b5ec0df4
+ 
+ store_name is now a templatable + booleans can be accessed
+] 
+
+[remove eager model + templated fresh-cmd
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261102094757
+ Ignore-this: ad0b924591c17ec81fcff675cb3fed7b835d1808b734c6611e92d6d5b82f67029de6394359594a0a
+] 
+
+[change many types from UTF8.t to Template.t
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261101170524
+ Ignore-this: 75305ef3031fd30277f49c0e5cb65f18b373a7ab046d34038992192611f8562091d1937c5663df42
+] 
+
+[Templates Stettler + settle
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261101141415
+ Ignore-this: b7e7edf2dab9daeb7740742e4984b2504bf8bc0bff8ddc5640d5730d906e9a124e8d775a8e2364f0
+] 
+
+[prefetch: get_latest → prefetch
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261101085939
+ Ignore-this: a890fc6ff826eabcea11223c1f689d82ebac85142905f17adfb3baf0ae9c1e17fb03c23f29ffc293
+] 
+
+[remove letest_*
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261101085735
+ Ignore-this: aaf4435dd6e084220b39ece5711ac55880cbc6809a59eba920fa4f717e895424900be9c0b3a4e5c3
+ 
+ phrasing isn’t helping us
+] 
+
+[schema: 1.5.0 → 2.0.0
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261101082024
+ Ignore-this: cac31ec57f7494e6903532e230c1e1dacbeb0c29354459e538d763c704afbdaf99bd2361ca63e822
+] 
+
+[nixtamal refresh
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261101044411
+ Ignore-this: a935b77071c6ef6fb5b03f91991f29c06e4e7cbc5f45a660c1e3be4abedc85bf4310477bade03248
+] 
+
+[add fix to util
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261031105624
+ Ignore-this: d6fe534fb6419277c0123102f978e9b3756dc5f635af7569bd74201dbd2afe888ea6b02c7847aad2
+] 
+
+[TAG 2.4.0
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261030091637
+ Ignore-this: e26cf1b660fccf05df10abef6b9bd5689a5464cd1a5606fd7ae80227d34641473a0f5b0f57e2fe1d
+ 
+ • --use-mirrors now uses the USTC & TUNA channel mirrors (in that order)
+ • Introduce minimal NixOS + Home Manager modules @ nix/module/*.nix;
+   these are only for enabling & swapping out the `program` for now
+ • nixtamal show shows the name & ends in a newline
+ • fix one minor indentation mismatch in the lock loader
 ] 
