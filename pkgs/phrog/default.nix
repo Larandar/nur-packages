@@ -36,7 +36,7 @@ in
         else lib.info "phrog: optional patches not enabled: ${toString disabled}; enable with `phrog.override {enabledPatches = [...];}`" version;
       inherit src;
 
-      inherit (lib.importJSON ./lock.nuon) cargoHash;
+      inherit (import ./lock.nix) cargoHash;
 
       patches = map (name: available.${name}) enabledPatches;
       postPatch = lib.optionalString (lib.elem "greeter-rotation" enabledPatches) ''

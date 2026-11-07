@@ -13,7 +13,7 @@
   cargoDeps = rustPlatform.fetchCargoVendor {
     name = "snix-${version}-vendor";
     inherit src sourceRoot;
-    hash = (lib.importJSON ./lock.nuon).cargoHash;
+    hash = (import ./lock.nix).cargoHash;
   };
 
   component = {

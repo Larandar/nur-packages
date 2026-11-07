@@ -22,6 +22,7 @@ revision or hash of an external source: nixpkgs, a package `src`, a patch.
 | --- | --- | --- |
 | `nixpkgs` | `nixpkgs-unstable` channel release | `https://channels.nixos.org/nixpkgs-unstable` redirect |
 | `nixtamal` | darcs `next` head | `https://darcs.toastal.in.th/nixtamal/next/_darcs/weak_hash` |
+| `iets` | newest `X.Y.Z` release tag | `nix/fresh.nu release https://github.com/numtide/iets` |
 
 An input named `<pkg>-*` is a companion of `<pkg>`, such as `celld-rusty-v8`:
 its `fresh-cmd` reads the pinned package source (`nix/fresh.nu locked-dep`), so
@@ -67,17 +68,23 @@ requests are separate, authorized steps.
 ## Derived hashes
 
 Hashes a build derives from its source (`vendorHash`, `cargoHash`) live in
-`pkgs/<pkg>/lock.nuon`, with the release `tag` they were computed for;
+`pkgs/<pkg>/lock.nix`, with the release `tag` they were computed for;
 evaluating `<pkg>` fails while that tag differs from a release pin. Never edit
 them by hand: `toolkit check <pkg>` builds the package and its
-`passthru.tests` and proposes the `lock.nuon` change a failing hash or stale
-tag needs; `--fix` applies it and rebuilds. `toolkit update` runs `check
---fix` for every package whose pins moved, and `toolkit hashes <pkg>`
-recomputes every hash from scratch. A package can be a set of binaries, one
-member per binary crate (`snix.store`, `snix.nar-bridge`); `check` builds each
-derivation member, and the members share one vendored dependency set and its
-`cargoHash`. `lock.nuon` is written as JSON, valid NUON
-that Nix reads with `lib.importJSON`.
+`passthru.tests` with [iets](https://github.com/numtide/iets) and proposes the
+`lock.nix` change a failing hash or stale tag needs; `--fix` rewrites the tag
+and lets iets's `fix-hashes` rewrite each mismatching hash in place as it
+builds. `toolkit update` runs `check --fix` for every package whose pins moved,
+and `toolkit hashes <pkg>` recomputes every hash from scratch. A package can be
+a set of binaries, one member per binary crate (`snix.store`,
+`snix.nar-bridge`); `check` builds each derivation member, and the members
+share one vendored dependency set and its `cargoHash`. `lock.nix` holds one
+string literal per key and no hash twice, so iets finds each hash in exactly
+one place.
+
+iets comes from numtide's flake, through its `flake-compat`, pinned as the
+`iets` input and put on PATH by `default.devShell`. It evaluates impurely, as
+`nix build --file` does, since nixpkgs reads `currentSystem`.
 
 ## Nushell plugins
 
@@ -96,6 +103,14 @@ holds the latest commit that compiles for the current Nushell. Their version is
 that version, so it ends on the last one that did. `toolkit update` advances
 them, keeping `main`'s pin when upstream's head does not build.
 
+## Own crates
+
+A package with a crate of its own over its pin keeps it in `pkgs/<pkg>/crate/`,
+assembled at `<pkg>/` in its build tree (`.src`) beside the pinned source, such
+as `searchwala-calf` over SearchWala. Its `Cargo.lock` is generated against the
+pinned release: `toolkit cargo-lock <pkg>` rewrites it, and `toolkit verify`
+does so whenever the pin moves, as for the Nushell plugins.
+
 ## Package patches
 
 Optional patches live in `pkgs/<package>/patches/` and are opt-in through the
@@ -108,17 +123,49 @@ from midgard-flakes, rebased onto the pinned `next`. When a refresh moves
 of its prefetchers and the caller's PATH, such as `[nushell]`.
 `default.devShell` enables the `shell` patch with `packages = [nushell]`.
 
+## CI
+
+GitHub Actions runs the updating flow, `.github/workflows/update.yml`, on
+GitHub's copy of the repository; `.github/actions/setup` installs Nix, takes jj
+and Nushell from the pinned nixpkgs, and runs `toolkit ci-prepare`.
+
+- `plan`, scheduled (or by hand, for one `kind`): `toolkit plan --publish`
+  finds the jobs (`toolkit jobs`: new upstream releases, moved nightlies, stale
+  inputs `main` owns) and pushes one candidate branch `ci/<kind>/<name>` per
+  job, with nothing built. Release and update candidates get a pull request
+  into `main`.
+- `verify`, one matrix run per candidate: `toolkit verify --publish` builds,
+  tests and repairs the candidate, then advances `<pkg>/nightly` (updating its
+  pull request) or lands the release or update on `main`, tags it, and closes
+  its pull requests, naming the landed commit (`nix/github.nu`): a landing is
+  curated, not merged. An update whose pin does not build is not landed, so
+  `main` keeps its last good pin. The next nightly after a release opens a new
+  pull request.
+
+Pushes made with the workflow token start no workflow, so `verify` follows
+`plan` in the same run instead of on a push event. Publishing uses that token
+(`GH_TOKEN`, with `contents` and `pull-requests` write); without it,
+`--publish` runs build and publish nothing. iets's cache (`IETS_CACHE_DIR`)
+lives in the run's temporary directory.
+
+Spindle still runs `.tangled/workflows/check.yml`: `toolkit check` on pull
+requests from people, through the host's Nix daemon (`NIX_REMOTE=daemon`), with
+iets's cache in `/var/cache/iets/unknown`, for code of unknown origin.
+
 ## Commands
 
 ```nu
 overlay use --prefix toolkit.nu
-toolkit update           # refresh what main owns, commit to main
+toolkit update           # plan + verify the update jobs, one landing each
 toolkit update nixpkgs   # refresh one input
-toolkit check engram     # build and test, propose lock.nuon fixes
+toolkit check engram     # build and test, propose lock.nix fixes
 toolkit check --fix      # the same for every package, applying the fixes
-toolkit hashes engram    # recompute one package's lock.nuon from scratch
-toolkit nightly          # advance every nightly whose upstream moved
-toolkit release          # land new upstream releases on main, tag them
+toolkit hashes engram    # recompute one package's lock.nix from scratch
+toolkit jobs             # what the pins call for, without building
+toolkit plan             # prepare one candidate per job on ci/<kind>/<name>
+toolkit verify           # build, repair, then advance or land each candidate
+toolkit nightly          # plan + verify the nightly jobs
+toolkit release          # plan + verify the release jobs, tag the rest
 toolkit load-shell       # repo tooling (this repo's nixtamal) in scope
 toolkit load-shell nixtamal  # plus each named package's devShell
 ```
