@@ -122,11 +122,9 @@ inputs {
 	}
 	// SearchWala's pipeline, which searchwala-calf wraps: its releases carry a build stamp.
 	searchwala-calf {
-		archive fetch-time=eval {
-			url "https://github.com/SandeepAi369/SearchWala/archive/refs/tags/{{fresh_value}}.tar.gz"
-		}
-		fresh-cmd {
-			$ nu "--no-config-file" "nix/fresh.nu" release "--stamped" "https://github.com/SandeepAi369/SearchWala"
+		git fetch-time=eval {
+			repository "https://github.com/SandeepAi369/SearchWala.git"
+			branch main
 		}
 	}
 	// The published crate, which carries the Cargo.lock the repository's tags lack; versioned without the tag's `v`.
