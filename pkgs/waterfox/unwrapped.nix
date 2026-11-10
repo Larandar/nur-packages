@@ -8,6 +8,7 @@
   src,
   version,
   autoPatchelfHook,
+  patchelfUnstable,
   alsa-lib,
   dbus-glib,
   gtk3,
@@ -27,7 +28,9 @@ stdenv.mkDerivation {
   pname = "waterfox-unwrapped";
   inherit version src;
 
-  nativeBuildInputs = [autoPatchelfHook];
+  # Waterfox ships ELF section layouts that need patchelf's
+  # --no-clobber-old-sections support; the default patchelf can be older.
+  nativeBuildInputs = [autoPatchelfHook patchelfUnstable];
   buildInputs = [
     alsa-lib
     dbus-glib
