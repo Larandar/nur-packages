@@ -2,28 +2,18 @@
 Context:
 
 
-[use __functor to point to Nixtamal, the installable
-·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261024162640
- Ignore-this: 76d8293a306e5a744edf4ba129c4ef5d7b1f71d8d93f6d9c54e9fa47438fb8d54595f61fb6438f8d
-] 
-
-[TAG 2.3.0
-·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261024112634
- Ignore-this: 5ddcdb4ae7e3aa668981e3d1d284700e9c62e059809322f6ae167de8cbb766812036ff9c5ab8e006
+[TAG 3.1.0
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261112121432
+ Ignore-this: ea0a47eb979f2e7cfbbde8cb1e928d92aa1988b77a7a6f6027edf179f35b0037eae0b3ed5cc0bb86
  
- • BREAKING: set-up --use-mirrors replaces set-up
-   --use-nixpkgs-git-mirrors; the environment variable is now
-   NIXTAMAL_USE_MIRRORS
- • Nixpkgs channel inputs use the versioned channel archive as the
-   primary source; --use-mirrors adds the TUNA release mirror as a
-   fallback
- • set-up --use-mirrors with no Nixpkgs reference or with
-   --nixpkgs-channel uses the channel archive + TUNA mirror.
-   --nixpkgs-ref always keeps the Git path with the known TUNA Git
-   mirror; without either flag still (for now) will default to the
-   archive @ https://github.com in order to have an example to copy+build
-   off of for the newest of comers
- • Now that the version channels are parsed into a datatype, channel
-   archives prefer Zstandard (.zst) with soon-to-be-deprecated LZMA (.xz)
-   fallback for stable major versions (year) < 26 for compatibility
+ • Lock loader more robustly checks for Nixpkgs for bootstraping; now
+   falls back (with warning) to <nixpkgs> if it can to at least provide
+   a working experience
+ • Better error when the manifest is missing: the directory Nixtamal
+   looked in is now named in the error, & when a manifest sits in the
+   mainstream nix/tamal folder under the passed --directory, the error
+   helpfully suggests that path
+ • nixtamal upgrade no longer crashes when the manifest is missing & no
+   longer wrongly utters manifest parse errors as a missing manifest
+ • Minor prefetching spinner tweak
 ] 
