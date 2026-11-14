@@ -6,7 +6,13 @@
     homeManager = inputs.home-manager;
     nixDarwin = inputs.nix-darwin;
   };
-  iets = (import "${inputs.iets}/nix/flake-compat.nix" {src = inputs.iets;}).defaultNix.packages.${pkgs.stdenv.hostPlatform.system}.default;
+  # numtide packages iets through its flake; its `lib.mkClassic` makes the
+  # real Nix with iets under its command names (nix, nix-build, nix-shell,
+  # nix-instantiate, nix-eval-jobs), each handing what iets does not implement
+  # to that Nix.
+  ietsFlake = (import "${inputs.iets}/nix/flake-compat.nix" {src = inputs.iets;}).defaultNix;
+  iets = ietsFlake.packages.${pkgs.stdenv.hostPlatform.system}.default;
+  iets-classic = ietsFlake.lib.mkClassic pkgs iets pkgs.nix;
   thinkrail = let
     input =
       {aarch64-darwin = "thinkrail-darwin-arm64";}.${pkgs.stdenv.hostPlatform.system} or "thinkrail";
@@ -39,7 +45,7 @@ in {
   };
 
   example-package = pkgs.callPackage ./pkgs/example-package {};
-  inherit nixtamal;
+  inherit nixtamal iets iets-classic;
 
   engram = pins.package "engram" ./pkgs/engram {};
   kasetto = pins.package "kasetto" ./pkgs/kasetto {};
