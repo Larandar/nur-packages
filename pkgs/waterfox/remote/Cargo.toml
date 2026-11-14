@@ -1,0 +1,31 @@
+[package]
+name = "waterfox-remote"
+version = "0.1.0"
+edition = "2021"
+license = "MPL-2.0"
+description = """
+Waterfox and the desktop launcher, both ways, over Waterfox's own remote
+debugging interface (WebDriver BiDi on loopback): one daemon holds the
+browser's single BiDi session and serves it over Varlink (always) and
+D-Bus (optionally), and hands intercepted launcher queries to a configured
+command and to every listener.
+"""
+
+[dependencies]
+anyhow = "1"
+axum = { version = "0.8", default-features = false, features = ["tokio", "http1"] }
+clap = { version = "4", features = ["derive", "env"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+rmcp = { version = "3.6", default-features = false, features = ["server", "macros", "transport-streamable-http-server", "transport-io"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt", "macros", "net", "io-util", "process", "sync", "time"] }
+tokio-tungstenite = { version = "0.27", default-features = false, features = ["connect"] }
+url = "2"
+hyper = { version = "1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+http-body-util = "0.1"
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+
+[profile.release]
+strip = true

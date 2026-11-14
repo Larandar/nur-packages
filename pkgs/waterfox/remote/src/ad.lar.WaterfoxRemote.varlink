@@ -1,0 +1,37 @@
+# Waterfox and the desktop launcher, over each profile's WebDriver BiDi
+# session. One service per user, for every profile, at
+# $XDG_RUNTIME_DIR/waterfox-remote/varlink.sock. `profile` defaults to
+# "default" (a browser started without -P/--profile).
+interface ad.lar.WaterfoxRemote
+
+# A top-level browsing context: one tab.
+type Tab (context: string, url: string, title: string)
+
+# The profiles this daemon serves, and whether each browser is reachable.
+method Profiles() -> (profiles: [](name: string, connected: bool))
+
+# Every top-level tab, in the browser's order.
+method Tabs(profile: ?string) -> (tabs: []Tab)
+
+# Bring a tab to the front.
+method Focus(profile: ?string, context: string) -> ()
+
+# Open a URL in a new tab, brought to the front; returns its context. A
+# profile whose browser is not running is started first (headless if
+# asked; `headless` means nothing to a browser already up) and the URL
+# takes its start tab.
+method Open(profile: ?string, url: string, headless: ?bool) -> (context: string)
+
+# Stream the queries typed behind the launcher alias, in any profile (call
+# with "more").
+method WatchLauncher() -> (profile: string, query: string)
+
+# The daemon does not serve this profile.
+error ProfileNotFound (profile: string)
+
+# The browser is not running with its remote debugging port, or the
+# daemon has not reached it yet.
+error BrowserNotConnected ()
+
+# The browser refused or failed the request.
+error BrowserError (message: string)

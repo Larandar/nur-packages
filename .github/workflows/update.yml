@@ -1,0 +1,75 @@
+# The updating flow. `plan` finds the jobs the pins call for and pushes one candidate branch `ci/<kind>/<name>` per
+# job, opening a pull request for each release and update; one `verify` run per candidate then builds, tests and
+# repairs it, and advances its nightly branch or lands it on main, tags it, and closes its pull request. Pushes made
+# with the workflow's token start no other workflow, so `verify` follows `plan` here rather than on a push event.
+name: "Update"
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: "Jobs to run"
+        type: choice
+        options: ["all", "update", "release", "nightly"]
+        default: "all"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# One run at a time: candidates of overlapping runs would race for the same branches.
+concurrency:
+  group: "update"
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+  NUR_CI_NAME: "github-actions[bot]"
+  NUR_CI_EMAIL: "41898282+github-actions[bot]@users.noreply.github.com"
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      candidates: ${{ steps.plan.outputs.candidates }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - id: plan
+        name: "Plan and publish candidates"
+        env:
+          KIND: ${{ inputs.kind || 'all' }}
+        # The script is Nushell's: its `$env` is not the shell's (SC2016).
+        run: |
+          # shellcheck disable=SC2016
+          nu --no-config-file -c '
+            overlay use --prefix toolkit.nu
+            let candidates = if $env.KIND == "all" { toolkit plan --publish } else { toolkit plan --publish --kind $env.KIND }
+            $"candidates=($candidates | to json --raw)\n" | save --append $env.GITHUB_OUTPUT
+          '
+
+  verify:
+    needs: plan
+    if: needs.plan.outputs.candidates != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      # Each candidate lands on its own: one that does not build leaves main on its last good pin.
+      fail-fast: false
+      matrix:
+        candidate: ${{ fromJSON(needs.plan.outputs.candidates) }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - name: "Verify ${{ matrix.candidate }}"
+        env:
+          CANDIDATE: ${{ matrix.candidate }}
+        run: |
+          # shellcheck disable=SC2016
+          nu --no-config-file -c 'overlay use --prefix toolkit.nu; toolkit verify --publish $env.CANDIDATE'

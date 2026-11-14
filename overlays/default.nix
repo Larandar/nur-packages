@@ -1,1 +1,3 @@
-{}
+{
+  mozilla = import ./mozilla.nix;
+}

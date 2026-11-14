@@ -35,6 +35,14 @@ inputs {
 			$ nu "--no-config-file" "nix/fresh.nu" release "https://github.com/pivoshenko/kasetto"
 		}
 	}
+	iets {
+		archive fetch-time=eval {
+			url "https://github.com/numtide/iets/archive/refs/tags/{{fresh_value}}.tar.gz"
+		}
+		fresh-cmd {
+			$ nu "--no-config-file" "nix/fresh.nu" release "https://github.com/numtide/iets"
+		}
+	}
 	phrog {
 		archive fetch-time=eval {
 			url "https://github.com/samcday/phrog/archive/refs/tags/{{fresh_value}}.tar.gz"
@@ -55,6 +63,93 @@ inputs {
 		git fetch-time=eval {
 			repository "https://git.snix.dev/snix/snix.git"
 			branch canon
+		}
+	}
+	celld {
+		archive fetch-time=eval {
+			url "https://github.com/denoland/celld/archive/refs/tags/{{fresh_value}}.tar.gz"
+		}
+		fresh-cmd {
+			$ nu "--no-config-file" "nix/fresh.nu" release "https://github.com/denoland/celld"
+		}
+	}
+	celld-rusty-v8 {
+		file {
+			url "https://github.com/denoland/rusty_v8/releases/download/v{{fresh_value}}/librusty_v8_release_x86_64-unknown-linux-gnu.a.gz"
+		}
+		fresh-cmd {
+			$ nu "--no-config-file" "nix/fresh.nu" locked-dep celld v8
+		}
+	}
+	nu-plugin-ws {
+		git fetch-time=eval {
+			repository "https://github.com/alex-kattathra-johnson/nu_plugin_ws.git"
+			branch main
+		}
+	}
+	nu-plugin-mongo {
+		git fetch-time=eval {
+			repository "https://github.com/WindSoilder/nu_plugin_mongo.git"
+			branch main
+		}
+	}
+	waterfox {
+		archive fetch-time=eval {
+			url "https://cdn1.waterfox.net/waterfox/releases/{{fresh_value}}/Linux_x86_64/waterfox-{{fresh_value}}.tar.bz2"
+		}
+		fresh-cmd {
+			$ nu "--no-config-file" "nix/fresh.nu" release "https://github.com/BrowserWorks/waterfox"
+		}
+	}
+	// ThinkRail's CLI, a Bun single-file executable; each platform's binary is its own input.
+	thinkrail {
+		file {
+			url "https://github.com/JetBrains/thinkrail/releases/download/{{fresh_value}}/thinkrail-linux-x64"
+		}
+		fresh-cmd {
+			$ nu "--no-config-file" "nix/fresh.nu" release "https://github.com/JetBrains/thinkrail"
+		}
+	}
+	thinkrail-darwin-arm64 {
+		file {
+			url "https://github.com/JetBrains/thinkrail/releases/download/{{fresh_value}}/thinkrail-darwin-arm64"
+		}
+		fresh-cmd {
+			$ nu "--no-config-file" "nix/fresh.nu" release "https://github.com/JetBrains/thinkrail"
+		}
+	}
+	// SearchWala's pipeline, which searchwala-calf wraps: its releases carry a build stamp.
+	searchwala-calf {
+		archive fetch-time=eval {
+			url "https://github.com/SandeepAi369/SearchWala/archive/refs/tags/{{fresh_value}}.tar.gz"
+		}
+		fresh-cmd {
+			$ nu "--no-config-file" "nix/fresh.nu" release "--stamped" "https://github.com/SandeepAi369/SearchWala"
+		}
+	}
+	// The published crate, which carries the Cargo.lock the repository's tags lack; versioned without the tag's `v`.
+	vproxy {
+		archive fetch-time=eval {
+			url "https://static.crates.io/crates/vproxy/vproxy-{{fresh_value}}.crate"
+			extension tar.gz
+		}
+		fresh-cmd {
+			$ nu "--no-config-file" "nix/fresh.nu" release "https://github.com/0x676e67/vproxy"
+			| sed "s/^v//"
+		}
+	}
+	// Evaluates homeModules in package tests; nothing builds from it.
+	home-manager {
+		git fetch-time=eval {
+			repository "https://github.com/nix-community/home-manager.git"
+			branch master
+		}
+	}
+	// Evaluates darwinModules in package tests; nothing builds from it.
+	nix-darwin {
+		git fetch-time=eval {
+			repository "https://github.com/nix-darwin/nix-darwin.git"
+			branch master
 		}
 	}
 }
