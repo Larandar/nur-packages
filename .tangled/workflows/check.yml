@@ -1,0 +1,25 @@
+# Pull requests into main from people: build and test every package.
+when:
+  - event: ["pull_request"]
+    branch: ["main"]
+  - event: ["manual"]
+
+engine: "nixery"
+
+dependencies:
+  nixpkgs:
+    - bash
+    - git
+    - nix
+    - nushell
+
+environment:
+  NIX_REMOTE: "daemon"
+  NIX_CONFIG: "experimental-features = nix-command flakes"
+  # iets's cache for code of unknown origin: people's pull requests.
+  IETS_CACHE_DIR: "/var/cache/iets/unknown"
+
+steps:
+  - name: "Check every package"
+    command: |
+      nu --no-config-file -c 'overlay use --prefix toolkit.nu; toolkit check'

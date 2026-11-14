@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>search</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; background: #10141c; color: #e8e6e3;
+         margin: 0; }
+  main { width: min(720px, 92vw); margin: 8vh auto 4rem; }
+  h1 { font-weight: 400; letter-spacing: .3em; text-transform: lowercase; }
+  form { display: flex; gap: .5rem; margin-bottom: 1rem; }
+  select, input, button { font: inherit; }
+  input { flex: 1; padding: .6rem .9rem; border-radius: 8px;
+          border: 1px solid #2a3242; background: #171c26; color: inherit; }
+  select { background: #171c26; color: inherit; border: 1px solid #2a3242;
+           border-radius: 8px; padding: .6rem; }
+  button { padding: .6rem 1.1rem; border-radius: 8px; border: 0;
+           background: #2a3242; color: inherit; cursor: pointer; }
+  .answer { border-left: 3px solid #8ab4f8; padding: .5rem .9rem; margin: 1rem 0;
+            background: #171c26; border-radius: 0 8px 8px 0; }
+  ol { padding-left: 1.4rem; line-height: 1.5; }
+  li { margin: .7rem 0; }
+  a { color: #8ab4f8; text-decoration: none; }
+  .meta { color: #7b8496; font-size: .85rem; }
+  .elsewhere a { margin-right: 1rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>search</h1>
+  <form id="f">
+    <input id="q" autofocus autocomplete="off" placeholder="query">
+    <select id="mode">
+      <option value="">auto</option>
+      <option value="fast">fast</option>
+      <option value="deep">deep</option>
+      <option value="study">study</option>
+      <option value="academic">academic</option>
+    </select>
+    <button>go</button>
+  </form>
+  <section id="out" class="meta">ask; hits appear as the engines answer.</section>
+</main>
+<script>
+  const out = document.getElementById('out');
+  const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+  const form = document.getElementById('f');
+
+  // The page is drawn from whatever has arrived: a status line, the
+  // answers (highlight, then the LLM's if any), and the hits — the ranked
+  // engine results first, replaced by the extracted results at the end.
+  let state, search;
+  const answer = text => text ? `<div class="answer">${esc(text)}</div>` : "";
+  const hit = x => `<li><a href="${esc(x.url)}" target="_blank">${esc(x.title)}</a>` +
+    `<div class="meta">${esc(x.engine)} \u00b7 ${esc(x.url)}</div></li>`;
+  // A search that ends with no hit, found nothing or failed, hands the
+  // query to two engines outside the door.
+  // A finished search keeps no status line unless it failed.
+  const elsewhere = q => '<p class="elsewhere meta">try it elsewhere: ' +
+    `<a href="https://duckduckgo.com/?q=${encodeURIComponent(q)}">DuckDuckGo</a>` +
+    `<a href="https://www.qwant.com/?q=${encodeURIComponent(q)}">Qwant</a></p>`;
+  const draw = () => {
+    const hits = state.hits.length ? '<ol>' + state.hits.map(hit).join("") + '</ol>' : "";
+    const body = answer(state.highlight) + answer(state.llm) + hits;
+    out.innerHTML = (state.status ? `<p class="meta">${esc(state.status)}</p>` : "") +
+      (body || (state.done && !state.status ? '<p class="meta">nothing found.</p>' : "")) +
+      (state.done && !state.hits.length ? elsewhere(state.q) : "");
+  };
+
+  // One NDJSON line from `/search`: a pipeline stage, the result, or an error.
+  const stage = m => {
+    switch (m.type) {
+      case 'plan': state.status = `asking ${m.engines} engines \u2026`; break;
+      case 'engines': state.status = `${m.raw_results} results from ${m.families} engines, ranking \u2026`; break;
+      case 'sources': state.hits = m.results || []; state.status = 'reading the top pages \u2026'; break;
+      case 'extracted': state.status = `read ${m.sources} pages \u2026`; break;
+      case 'highlight': state.highlight = m.highlight && m.highlight.text; break;
+      case 'synthesizing': state.status = 'writing the answer \u2026'; break;
+      case 'result': {
+        const d = m.response || {};
+        state.highlight = d.highlight ? d.highlight.text : state.highlight;
+        state.llm = d.llm_answer;
+        if ((d.results || []).length) state.hits = d.results;
+        state.status = "";
+        state.done = true;
+        break;
+      }
+      case 'error': state.status = 'search failed: ' + m.error; state.done = true; break;
+    }
+    draw();
+  };
+
+  form.onsubmit = async e => {
+    e.preventDefault();
+    const q = document.getElementById('q').value.trim();
+    history.replaceState(null, "", q ? `?q=${encodeURIComponent(q)}` : location.pathname);
+    const mode = document.getElementById('mode').value;
+    if (!q) return;
+    if (search) search.abort();
+    search = new AbortController();
+    state = { q, status: 'searching \u2026', hits: [], highlight: "", llm: "", done: false };
+    draw();
+    try {
+      const r = await fetch(`/search?q=${encodeURIComponent(q)}` + (mode ? `&mode=${mode}` : ""),
+        { signal: search.signal });
+      const reader = r.body.pipeThrough(new TextDecoderStream()).getReader();
+      let buffered = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffered += value;
+        const lines = buffered.split("\n");
+        buffered = lines.pop();
+        for (const line of lines) if (line.trim()) stage(JSON.parse(line));
+      }
+      if (buffered.trim()) stage(JSON.parse(buffered));
+      if (!state.done) { state.status = 'search failed: the stream ended early'; state.done = true; draw(); }
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      state.status = 'search failed: ' + err;
+      state.done = true;
+      draw();
+    }
+  };
+  // `/?q=` is the browser's search-engine URL: arrive with a query, run it.
+  const initial = new URLSearchParams(location.search).get('q');
+  if (initial) {
+    document.getElementById('q').value = initial;
+    form.requestSubmit();
+  }
+</script>
+</body>
+</html>
