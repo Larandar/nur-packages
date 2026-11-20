@@ -3,7 +3,18 @@ def --wrapped main [tool: string, ...args: string] {
         nix => {
             match $args.0 {
                 develop => { ^bash -c 'env -u FILE_PWD -u CURRENT_FILE -0 > "$0"' ($args | last) }
-                build => { print $env.TEST_SOURCE }
+                build => {
+                    if ($args | last) == "searchwala-calf.src" {
+                        let input = open nix/tamal/lock.json | get i | get --optional searchwala-calf
+                        let tag = open --raw pkgs/searchwala-calf/lock.nix | parse --regex 'tag = "(?<tag>[^"]+)"' | get --optional 0.tag
+                        if $input != null and $input.kd.0 == 1 and $tag != $input.fv {
+                            print --stderr "searchwala-calf: stale release tag"
+                            exit 1
+                        }
+                        "source\n" | save --append $env.TEST_LOG
+                    }
+                    print $env.TEST_SOURCE
+                }
                 shell => { "cargo\n" | save --append $env.TEST_LOG }
                 eval => {
                     if ($args | last | str contains "p.tests or {}") {
@@ -14,6 +25,12 @@ def --wrapped main [tool: string, ...args: string] {
                         print (if ($env.TEST_NO_TESTS? | default false | into bool) { "[]" } else { '["module"]' })
                     } else if "--apply" in $args {
                         print "[]"
+                    } else if ($args | last | str ends-with "lock.nix") {
+                        open --raw ($args | last)
+                        | parse --regex '(?<key>\w+)\s*=\s*"(?<value>[^"]*)"'
+                        | reduce --fold {} {|entry, lock| $lock | insert $entry.key $entry.value }
+                        | to json
+                        | print
                     } else {
                         print "{}"
                     }
@@ -24,8 +41,19 @@ def --wrapped main [tool: string, ...args: string] {
         iets => {
             let target = $args | last
             $"($target)\n" | save --append $env.TEST_LOG
+            let package = $target | split row "." | first
+            if $package in [engram kasetto] {
+                if ($"pkgs/($package)/lock.nuon" | path exists) or not ($"pkgs/($package)/lock.nix" | path exists) {
+                    print --stderr "legacy lock was not migrated"
+                    exit 1
+                }
+                if (open --raw $"pkgs/($package)/default.nix" | str contains "lock.nuon") {
+                    print --stderr "package still consumes the legacy lock"
+                    exit 1
+                }
+            }
             if ($env.TEST_FAIL? | default false | into bool) and ("concurrent.txt" | path exists) {
-                print --stderr "combined tree failed"
+                print --stderr (["root cause: combined tree failed"] ++ (1..20 | each { "evaluation frame" }) | str join "\n")
                 exit 1
             }
         }

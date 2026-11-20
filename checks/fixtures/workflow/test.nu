@@ -27,10 +27,10 @@ $env.TEST_SOURCE = $env.HOME | path join source
 mkdir ($env.TEST_SOURCE | path join searchwala-calf)
 "lock" | save ($env.TEST_SOURCE | path join searchwala-calf Cargo.lock)
 mkdir nix/tamal pkgs/waterfox pkgs/searchwala-calf/crate
-'{"v":1,"i":{},"p":{}}' | save nix/tamal/lock.json
-"inputs {}\n" | save nix/tamal/manifest.kdl
+{v: 1, i: {searchwala-calf: {kd: [1 {}], fv: "v1"}}, p: {}} | to json | save nix/tamal/lock.json
+"inputs {\n\tsearchwala-calf {\n\t}\n}\n" | save nix/tamal/manifest.kdl
 "{}" | save pkgs/waterfox/lock.nix
-"{}" | save pkgs/searchwala-calf/lock.nix
+'{ tag = "v1"; }' | save pkgs/searchwala-calf/lock.nix
 "lock" | save pkgs/searchwala-calf/crate/Cargo.lock
 ^git init --initial-branch=main
 ^git -c user.name=test -c user.email=test@example.invalid add .
@@ -69,6 +69,54 @@ for target in [waterfox waterfox.tests.module searchwala-calf searchwala-calf.te
     assert equal (log | where $it == $target | length) 2
 }
 
+# A release must repair its stale tag before building the source to regenerate Cargo.lock.
+^jj new main
+{v: 1, i: {searchwala-calf: {kd: [1 {}], fv: "v2"}}, p: {}} | to json | save --force nix/tamal/lock.json
+^jj describe -m "searchwala-calf: 2"
+^jj bookmark set ci/release/searchwala-calf -r @
+^jj new main
+reset-log
+toolkit verify ci/release/searchwala-calf
+for target in [source cargo searchwala-calf searchwala-calf.tests.module] {
+    assert equal (log | where $it == $target | length) 2
+}
+assert (open --raw pkgs/searchwala-calf/lock.nix | str contains 'tag = "v2"')
+assert equal (^git rev-parse searchwala-calf/releases/v2 | str trim) (commit main)
+
+# Old nightly directories must migrate their JSON hashes before evaluation and hash repair.
+^jj new main
+open nix/tamal/lock.json | upsert i.kasetto {kd: [1 {}], fv: "v2"} | to json | save --force nix/tamal/lock.json
+open --raw nix/tamal/manifest.kdl
+| str replace "\n}" "\n\tkasetto {\n\t}\n}"
+| save --force nix/tamal/manifest.kdl
+^jj describe -m "Release inputs"
+^jj bookmark set main -r @
+^jj new main
+for package in [engram kasetto] {
+    ^jj new main
+    mkdir $"pkgs/($package)"
+    '{ lib, ... }: { hash = (lib.importJSON ./lock.nuon).cargoHash; }' | save $"pkgs/($package)/default.nix"
+    {tag: "v1", cargoHash: "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}
+    | to json | save $"pkgs/($package)/lock.nuon"
+    if $package == engram {
+        '{ tag = "v2"; }' | save $"pkgs/($package)/lock.nix"
+    }
+    ^jj describe -m $"($package): nightly"
+    let kind = if $package == engram { "nightly" } else { "release" }
+    ^jj bookmark set $"ci/($kind)/($package)" -r @
+    ^jj new main
+    reset-log
+    toolkit verify $"ci/($kind)/($package)"
+    assert equal (log | where $it == $package | length) (if $kind == nightly { 1 } else { 2 })
+    let branch = if $kind == nightly { $"($package)/nightly" } else { "main" }
+    let lock = ^jj file show -r $branch $"pkgs/($package)/lock.nix"
+    assert ($lock | str contains 'cargoHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="')
+    assert ($lock | str contains 'tag = "v2"')
+    let expression = ^jj file show -r $branch $"pkgs/($package)/default.nix"
+    assert ($expression | str contains '(import ./lock.nix)')
+    assert equal (^jj file list -r $branch $"pkgs/($package)/lock.nuon" | str trim) ""
+}
+
 # A candidate based on older main must not land when the combined tree fails.
 candidate
 ^jj new main
@@ -79,8 +127,9 @@ let newer = commit main
 ^jj new main
 $env.TEST_FAIL = true
 reset-log
-let failed = try { toolkit verify ci/update/home-manager; false } catch { true }
-assert $failed
+let failed = ^nu --no-config-file -c 'overlay use --prefix toolkit.nu; toolkit verify ci/update/home-manager' | complete
+assert ($failed.exit_code != 0)
+assert ($failed.stderr | str contains "root cause: combined tree failed")
 assert equal (commit main) $newer
 assert equal (^jj bookmark list ci/update/home-manager -T name | str trim) ci/update/home-manager
 assert equal (log | where $it == waterfox | length) 2

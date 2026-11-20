@@ -27,3 +27,8 @@ moves. As a service:
 `nixosModules.searchwala-calf` (hardened systemd unit, secrets through
 `environmentFile`) and `darwinModules.searchwala-calf` (launchd user agent,
 socket under `/tmp`).
+
+The crate's build script detects whether the pinned pipeline still takes a
+history database; both the release and newer stateless API pass no database.
+Search parameters and LLM configuration leave upstream's optional additions
+(conversation memory and context window) at their defaults.
