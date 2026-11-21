@@ -1,0 +1,22 @@
+# Nix, then the tools the toolkit runs before `load-shell` (jj and Nushell) from the pinned nixpkgs, and a checkout
+# `toolkit ci-prepare` made ready to plan, verify and publish. Expects a full-history `actions/checkout`.
+name: "Set up the toolkit"
+description: "Install Nix and the toolkit's tools, then prepare the checkout"
+runs:
+  using: "composite"
+  steps:
+    - uses: cachix/install-nix-action@v31
+      with:
+        extra_nix_config: "experimental-features = nix-command flakes"
+    - name: "Toolkit tools from the pinned nixpkgs"
+      shell: bash
+      run: |
+        nix build --impure --out-link "$RUNNER_TEMP/toolkit-tools" --expr '
+          let pkgs = import (import ./nix/tamal {}).nixpkgs {};
+          in pkgs.buildEnv { name = "toolkit-tools"; paths = [pkgs.jujutsu pkgs.nushell]; }'
+        echo "$RUNNER_TEMP/toolkit-tools/bin" >> "$GITHUB_PATH"
+        # iets's cache lives and dies with the run; nothing a pull request wrote reaches it.
+        echo "IETS_CACHE_DIR=$RUNNER_TEMP/iets" >> "$GITHUB_ENV"
+    - name: "Prepare the checkout"
+      shell: bash
+      run: nu --no-config-file -c 'overlay use --prefix toolkit.nu; toolkit ci-prepare'
