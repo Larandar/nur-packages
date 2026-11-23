@@ -18,7 +18,7 @@
 ,"thinkrail":{"sn":"thinkrail-src","kd":[0,{"ft":0,"ur":"https://github.com/JetBrains/thinkrail/releases/download/v0.4.0/thinkrail-linux-x64","ms":[]}],"ha":{"al":0,"vl":"sha256-1HGL3mQ1ITTqG1IqfjFpMl2mInMQXW3xulqqb9JFpPg="},"fv":"v0.4.0","ps":[]}
 ,"thinkrail-darwin-arm64":{"sn":"thinkrail-darwin-arm64-src","kd":[0,{"ft":0,"ur":"https://github.com/JetBrains/thinkrail/releases/download/v0.4.0/thinkrail-darwin-arm64","ms":[]}],"ha":{"al":0,"vl":"sha256-xVNoQuGRS5NWt7GQMkjHDa5sbRJlRB1b8jvIvyTfgrM="},"fv":"v0.4.0","ps":[]}
 ,"vproxy":{"sn":"vproxy-src","kd":[1,{"ft":1,"ur":"https://static.crates.io/crates/vproxy/vproxy-2.5.5.crate","ms":[],"ex":"tar.gz"}],"ha":{"al":0,"vl":"sha256-3SiKU/ezBl9jRpm1/m5GDAh0kbNFDvfS8DbaL6oXCjM="},"fv":"2.5.5","ps":[]}
-,"waterfox":{"sn":"waterfox-src","kd":[1,{"ft":1,"ur":"https://cdn1.waterfox.net/waterfox/releases/6.7.8/Linux_x86_64/waterfox-6.7.8.tar.bz2","ms":[],"ex":null}],"ha":{"al":0,"vl":"sha256-jOnFFa98COsXt34PM2eZUj4S4Yr29+EvmTqHWnpI8Ww="},"fv":"6.7.8","ps":[]}
+,"waterfox":{"sn":"waterfox-src","kd":[1,{"ft":1,"ur":"https://cdn1.waterfox.net/waterfox/releases/6.7.9/Linux_x86_64/waterfox-6.7.9.tar.bz2","ms":[],"ex":null}],"ha":{"al":0,"vl":"sha256-/Ex9spbns+N8FbZHYh6OPA40KvEp3yCQ7U3Sp8cyHY8="},"fv":"6.7.9","ps":[]}
 }
 ,"p":{}
 }
