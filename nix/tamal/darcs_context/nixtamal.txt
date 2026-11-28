@@ -2,28 +2,58 @@
 Context:
 
 
-[use __functor to point to Nixtamal, the installable
-·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261024162640
- Ignore-this: 76d8293a306e5a744edf4ba129c4ef5d7b1f71d8d93f6d9c54e9fa47438fb8d54595f61fb6438f8d
+[settle / meld VCS latest using {{fresh_value}}
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261127192543
+ Ignore-this: 39ffbd4de7b8735f97f8e8dbc528951ef3e16b1ac8b24f0f939c33b980a12c9f210ac6e6b7c07a70
 ] 
 
-[TAG 2.3.0
-·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261024112634
- Ignore-this: 5ddcdb4ae7e3aa668981e3d1d284700e9c62e059809322f6ae167de8cbb766812036ff9c5ab8e006
+[add colon to vim command
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261126172111
+ Ignore-this: ff8bdfaf3f403b81d663ab003316ac5750dcf623a80401099936c1eff54e9913c65d492590176f7b
+] 
+
+[fix typography
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261124092927
+ Ignore-this: f445c54691a214c862b3b29ee4aabb8bd00f1df263a39e7270b9bf8bf4da09a2ef74a7902c53f8fe
+] 
+
+[manifest + lockfile locations changable (outside working dir too)
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261124092415
+ Ignore-this: dacbf0288e885604e74603d0777a036fd3886794877468218f7054388ef707160c25c474d0c58eeb
+] 
+
+[dir rename: vendored_patches → vendored_patch
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261124063322
+ Ignore-this: af364872d08d64bbe2a71774161c1c44c5b39427ec45e2444d3faa39da0e0ffed7e1d0e6de03796e
+] 
+
+[version: 3.1.0 → 3.2.0
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261124063102
+ Ignore-this: 99c4fcd1d7ba8439d71b15c409a1a981b8dce341ab6a62213ed2ebed903fd8e9441baab54bb9052d
+] 
+
+[check/catch/error when NIX_PATH is unset
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261124054905
+ Ignore-this: b73614b6c4ef643cf538ee5c4a9953fdd483f5501fb4e7bf1597fecd9e18c08664810f8226445bb2
+] 
+
+[nixtamal refresh
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261123174910
+ Ignore-this: 736e9b305d7a1b9edd17aae28a3071b396d2d212eaa1b7d34eb8958cd93b260a217a96e60f42459
+] 
+
+[TAG 3.1.0
+·𐑑𐑴𐑕𐑑𐑩𐑤 <toastal@posteo.net>**20261112121432
+ Ignore-this: ea0a47eb979f2e7cfbbde8cb1e928d92aa1988b77a7a6f6027edf179f35b0037eae0b3ed5cc0bb86
  
- • BREAKING: set-up --use-mirrors replaces set-up
-   --use-nixpkgs-git-mirrors; the environment variable is now
-   NIXTAMAL_USE_MIRRORS
- • Nixpkgs channel inputs use the versioned channel archive as the
-   primary source; --use-mirrors adds the TUNA release mirror as a
-   fallback
- • set-up --use-mirrors with no Nixpkgs reference or with
-   --nixpkgs-channel uses the channel archive + TUNA mirror.
-   --nixpkgs-ref always keeps the Git path with the known TUNA Git
-   mirror; without either flag still (for now) will default to the
-   archive @ https://github.com in order to have an example to copy+build
-   off of for the newest of comers
- • Now that the version channels are parsed into a datatype, channel
-   archives prefer Zstandard (.zst) with soon-to-be-deprecated LZMA (.xz)
-   fallback for stable major versions (year) < 26 for compatibility
+ • Lock loader more robustly checks for Nixpkgs for bootstraping; now
+   falls back (with warning) to <nixpkgs> if it can to at least provide
+   a working experience
+ • Better error when the manifest is missing: the directory Nixtamal
+   looked in is now named in the error, & when a manifest sits in the
+   mainstream nix/tamal folder under the passed --directory, the error
+   helpfully suggests that path
+ • nixtamal upgrade no longer crashes when the manifest is missing & no
+   longer wrongly utters manifest parse errors as a missing manifest
+ • Minor prefetching spinner tweak
 ] 
