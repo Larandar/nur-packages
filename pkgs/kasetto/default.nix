@@ -8,7 +8,7 @@ rustPlatform.buildRustPackage {
   pname = "kasetto";
   inherit src version;
 
-  inherit (lib.importJSON ./lock.nuon) cargoHash;
+  inherit (import ./lock.nix) cargoHash;
 
   meta = {
     description = "Declarative AI agent environment manager";
